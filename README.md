@@ -11,6 +11,8 @@
 <p align="center">
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/StreamVista-IPTV-Setup-v8.exe"><strong>Download for Windows</strong></a>
   &nbsp;·&nbsp;
+  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/app-release.apk"><strong>Download for Android</strong></a>
+  &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases">All releases</a>
 </p>
 
@@ -35,7 +37,15 @@ StreamVista puts live TV, movies, and series in a focused interface built for co
 2. Run the installer and follow the on-screen steps.
 3. Open StreamVista and add the details from a provider you are authorised to use.
 
-Windows 10 or 11 is required. The installer is currently not code-signed, so Windows SmartScreen may ask you to confirm before opening it.
+Windows 10 or 11 is required for the Windows installer. The installer is currently not code-signed, so Windows SmartScreen may ask you to confirm before opening it.
+
+## Android installation
+
+1. Download **app-release.apk** from the latest release above.
+2. Open the downloaded file on your Android device.
+3. Allow installation from your browser or file manager when Android asks, then follow the prompts.
+
+The APK works on modern Android phones, tablets, and compatible Android TV devices. Android may display a confirmation because the app is installed outside Google Play.
 
 ## Privacy and security
 
