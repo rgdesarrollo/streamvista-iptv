@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/StreamVista-IPTV-Setup.exe"><strong>Download for Windows</strong></a>
+  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/StreamVista-IPTV-Setup-v8.exe"><strong>Download for Windows</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases">All releases</a>
 </p>
@@ -31,7 +31,7 @@ StreamVista puts live TV, movies, and series in a focused interface built for co
 
 ## Windows installation
 
-1. Download **StreamVista-IPTV-Setup.exe** from the latest release above.
+1. Download **StreamVista-IPTV-Setup-v8.exe** from the latest release above.
 2. Run the installer and follow the on-screen steps.
 3. Open StreamVista and add the details from a provider you are authorised to use.
 
