@@ -1,0 +1,28 @@
+name: streamvista_iptv
+description: IPTV client for authorized Xtream Codes and M3U sources.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.5
+  flutter_secure_storage: ^10.0.0
+  shared_preferences: ^2.3.2
+  shared_preferences_windows: ^2.4.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - icon.png

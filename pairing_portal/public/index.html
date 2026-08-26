@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StreamVista | Tu reproductor, en cualquier pantalla</title>
+    <meta name="description" content="StreamVista reproduce tus fuentes IPTV autorizadas en Android, Windows, macOS e iOS." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#inicio"><img src="logo.png" alt="StreamVista" /><span>StreamVista</span></a>
+      <nav aria-label="Navegación principal"><a href="#inicio">Inicio</a><a href="#plataformas">Plataformas</a><a href="#como-funciona">Cómo funciona</a><a href="#pair">Mi cuenta</a></nav>
+      <a class="header-action" href="#pair">Crear cuenta <span>→</span></a>
+    </header>
+
+    <main>
+      <section id="inicio" class="hero">
+        <div class="hero-copy">
+          <span class="pill"><i></i> Reproductor para tus fuentes autorizadas</span>
+          <h1>Tu contenido.<br /><em>Tu pantalla.</em></h1>
+          <p>StreamVista es un reproductor privado para listas M3U/M3U8 y Xtream Codes autorizadas. Disfruta de una experiencia rápida y consistente en cualquier dispositivo.</p>
+          <div class="hero-buttons"><a class="primary-button" href="#pair">Crear cuenta <span>→</span></a><a class="text-button" href="#plataformas">Ver plataformas <span>↓</span></a></div>
+          <div class="hero-stats"><div><strong>4K</strong><span>Preparado para Ultra HD</span></div><div><strong>15 s</strong><span>Controles inteligentes</span></div><div><strong>1 PIN</strong><span>Emparejamiento privado</span></div></div>
+        </div>
+        <div class="hero-visual" aria-label="Vista previa del reproductor StreamVista">
+          <div class="orb orb-one"></div><div class="orb orb-two"></div>
+          <div class="screen-card">
+            <div class="screen-bar"><span></span><span></span><span></span><b>STREAMVISTA</b></div>
+            <div class="screen-body"><div class="side-list"><small>EN DIRECTO</small><b class="active-line">Noticias 24</b><b>Deportes</b><b>Cine</b><b>Documentales</b></div><div class="preview"><img src="logo.png" alt="" /><div class="play">▶</div><p>Tu fuente autorizada, en una sola pantalla.</p></div></div>
+            <div class="screen-controls"><span>● Conectado</span><b>1920 × 1080</b><span>◀　▶　⛶</span></div>
+          </div>
+          <div class="mini-card"><img src="logo.png" alt="" /><span>Emparejamiento<br /><b>seguro</b></span><i>✓</i></div>
+        </div>
+      </section>
+
+      <section id="plataformas" class="platform-section">
+        <p class="section-kicker">COMPATIBILIDAD</p><h2>StreamVista se adapta a tu pantalla.</h2><p class="section-intro">Configura una fuente una vez y úsala en el dispositivo que prefieras. Sin listas incluidas: tú controlas tus fuentes autorizadas.</p>
+        <div class="platform-grid">
+          <article><span class="platform-icon android">●</span><h3>Android</h3><p>Teléfonos, tablets y Android TV.</p><small>Disponible ahora</small></article>
+          <article><span class="platform-icon windows">⊞</span><h3>Windows</h3><p>Experiencia de escritorio con reproducción nativa.</p><small>Disponible ahora</small></article>
+          <article><span class="platform-icon apple">⌘</span><h3>macOS</h3><p>Diseñado para tu Mac.</p><small>Compatible</small></article>
+          <article><span class="platform-icon ios">●</span><h3>iPhone & iPad</h3><p>Versión iOS para distribución mediante tu cuenta Apple.</p><small>Próximamente</small></article>
+        </div>
+      </section>
+
+      <section class="feature-banner">
+        <div><p class="section-kicker">REPRODUCCIÓN INTELIGENTE</p><h2>Hecho para ver sin distraerte.</h2><p>Elige perfiles de búfer para 1080p o 4K, consulta la resolución y el estado de conectividad, y cambia de canal con el teclado incluso a pantalla completa.</p></div>
+        <div class="feature-points"><p><b>01</b> Menú lateral desplazable</p><p><b>02</b> Controles que se ocultan tras 15 segundos</p><p><b>03</b> Perfil de búfer 1080p / 4K</p></div>
+      </section>
+
+      <section id="como-funciona" class="steps-section"><p class="section-kicker">CÓMO FUNCIONA</p><h2>Listo en tres pasos.</h2><div class="steps"><article><span>01</span><h3>Instala StreamVista</h3><p>Descarga la aplicación en tu dispositivo compatible.</p></article><article><span>02</span><h3>Crea una cuenta</h3><p>Regístrate o inicia sesión para acceder a tu área privada.</p></article><article><span>03</span><h3>Configura tu dispositivo</h3><p>Desde tu cuenta, añade tu URL M3U o tus datos Xtream autorizados.</p></article></div></section>
+
+      <section id="pair" class="pair-section">
+        <div class="pair-copy"><p class="section-kicker">ÁREA PRIVADA</p><h2>Regístrate para gestionar tus dispositivos.</h2><p>El acceso a la configuración no es público. Crea una cuenta o inicia sesión para acceder a las opciones de tu dispositivo y tus fuentes autorizadas.</p><div class="security-note"><span>⌁</span><p><b>Diseñado para privacidad</b><br />No solicitamos una dirección MAC. La configuración expira en 10 minutos y se borra al recibirla el dispositivo.</p></div></div>
+        <div class="portal-shell">
+          <form id="login-form" class="portal-form">
+            <div class="form-heading"><span class="lock">⌁</span><div><small>STREAMVISTA</small><h3>Inicia sesión</h3></div></div>
+            <label>Correo electrónico<input id="email" type="email" autocomplete="email" placeholder="nombre@empresa.com" required /></label>
+            <label>Contraseña<input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required /></label>
+            <button class="primary-button">Entrar <span>→</span></button><button id="show-register" type="button" class="outline-button">¿No tienes cuenta? Regístrate</button><p id="login-status" role="status"></p>
+          </form>
+          <form id="register-form" class="portal-form hidden">
+            <div class="form-heading"><span class="lock">+</span><div><small>STREAMVISTA</small><h3>Crea tu cuenta</h3></div></div>
+            <label>Correo electrónico<input id="register-email" type="email" autocomplete="email" placeholder="nombre@empresa.com" required /></label>
+            <label>Contraseña<input id="register-password" type="password" autocomplete="new-password" minlength="6" placeholder="Mínimo 6 caracteres" required /></label>
+            <button class="primary-button">Crear cuenta <span>→</span></button><button id="show-login" type="button" class="outline-button">Ya tengo una cuenta</button><p id="register-status" role="status"></p>
+          </form>
+          <form id="provision-form" class="portal-form hidden">
+            <div class="form-heading"><span class="lock">✓</span><div><small>DISPOSITIVO EMPAREJADO</small><h3>Enviar configuración</h3></div></div>
+            <div class="field-row"><label>ID de dispositivo<input id="device-id" required placeholder="SV-…" /></label><label>PIN<input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="123456" /></label></div>
+            <label>Tipo de fuente<select id="source-type"><option value="xtream">Xtream Codes</option><option value="m3u">M3U / M3U8</option></select></label>
+            <label>URL del servidor o lista<input id="server" type="url" required placeholder="https://…" /></label>
+            <div id="xtream-fields" class="field-row"><label>Usuario<input id="username" autocomplete="username" /></label><label>Contraseña<input id="source-password" type="password" autocomplete="new-password" /></label></div>
+            <label>User-Agent <small>Opcional</small><input id="user-agent" /></label>
+            <button class="primary-button">Enviar al dispositivo <span>→</span></button><button id="sign-out" type="button" class="outline-button">Cerrar sesión</button><p id="provision-status" role="status"></p>
+          </form>
+        </div>
+      </section>
+    </main>
+    <footer><a class="brand" href="#inicio"><img src="logo.png" alt="" /><span>StreamVista</span></a><p>Reproductor para contenido y fuentes que tienes permiso de reproducir.</p><span>© 2026 StreamVista</span></footer>
+    <script src="firebase-config.js"></script><script type="module" src="app.js"></script>
+  </body>
+</html>
