@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -25,7 +24,6 @@ const _surface = Color(0xFF12143A);
 const _surfaceLight = Color(0xFF1A1D52);
 const _screen = Color(0xFF080A27);
 const _logoAsset = 'icon.png';
-const _credentialStore = FlutterSecureStorage();
 
 class StreamVistaApp extends StatefulWidget {
   const StreamVistaApp({super.key});
@@ -45,8 +43,7 @@ class _StreamVistaAppState extends State<StreamVistaApp> {
   }
 
   Future<void> _restore() async {
-    final values =
-        await Future.wait([PortalConfig.restore(), AppSettings.restore()]);
+    final values = await Future.wait([PortalConfig.restore(), AppSettings.restore()]);
     if (mounted) {
       setState(() {
         config = values[0] as PortalConfig?;
@@ -116,12 +113,9 @@ class AppSettings {
       .setString('playback_profile', profile.name);
 
   static Future<AppSettings> restore() async {
-    final raw =
-        (await SharedPreferences.getInstance()).getString('playback_profile');
+    final raw = (await SharedPreferences.getInstance()).getString('playback_profile');
     try {
-      return AppSettings(
-          profile:
-              PlaybackProfile.values.byName(raw ?? PlaybackProfile.hd.name));
+      return AppSettings(profile: PlaybackProfile.values.byName(raw ?? PlaybackProfile.hd.name));
     } catch (_) {
       return const AppSettings();
     }
@@ -149,9 +143,10 @@ class PortalConfig {
       {'username': username!.trim(), 'password': password!.trim()};
 
   Future<void> save() async {
-    await _credentialStore.write(
-        key: 'portal',
-        value: jsonEncode({
+    final p = await SharedPreferences.getInstance();
+    await p.setString(
+        'portal',
+        jsonEncode({
           'type': type.name,
           'server': server,
           'username': username,
@@ -161,12 +156,8 @@ class PortalConfig {
   }
 
   static Future<PortalConfig?> restore() async {
-    final raw = await _credentialStore.read(key: 'portal');
-    if (raw == null) {
-      // Remove legacy plaintext credentials from versions released before secure storage.
-      await (await SharedPreferences.getInstance()).remove('portal');
-      return null;
-    }
+    final raw = (await SharedPreferences.getInstance()).getString('portal');
+    if (raw == null) return null;
     try {
       final j = jsonDecode(raw) as Map<String, dynamic>;
       return PortalConfig(
@@ -180,10 +171,8 @@ class PortalConfig {
     }
   }
 
-  static Future<void> clear() async {
-    await _credentialStore.delete(key: 'portal');
-    await (await SharedPreferences.getInstance()).remove('portal');
-  }
+  static Future<void> clear() async =>
+      (await SharedPreferences.getInstance()).remove('portal');
 }
 
 class MediaItem {
@@ -243,14 +232,12 @@ class IptvApi {
       // El catálogo se puede reproducir aunque un portal no exponga categorías.
     }
     final categories = <String, String>{
-      for (final raw
-          in categoryResult is List ? categoryResult : const <dynamic>[])
+      for (final raw in categoryResult is List ? categoryResult : const <dynamic>[])
         if (raw is Map && raw['category_id'] != null)
           '${raw['category_id']}': '${raw['category_name'] ?? 'Sin categoría'}',
     };
     return rows.map((raw) {
-      if (raw is! Map)
-        throw const FormatException('Hay elementos no válidos en el catálogo.');
+      if (raw is! Map) throw const FormatException('Hay elementos no válidos en el catálogo.');
       final x = raw;
       final id = '${x['stream_id'] ?? x['series_id'] ?? x['num']}';
       final extension = x['container_extension'] ?? 'm3u8';
@@ -267,10 +254,7 @@ class IptvApi {
           title: (x['name'] ?? 'Sin título').toString(),
           streamUrl: stream,
           kind: kind,
-          category: (x['category_name'] ??
-                  categories['${x['category_id']}'] ??
-                  'Sin categoría')
-              .toString(),
+          category: (x['category_name'] ?? categories['${x['category_id']}'] ?? 'Sin categoría').toString(),
           logo: x['stream_icon']?.toString(),
           poster: x['stream_icon']?.toString(),
           year: x['year']?.toString(),
@@ -292,15 +276,13 @@ class IptvApi {
     try {
       return jsonDecode(utf8.decode(response.bodyBytes));
     } on FormatException {
-      throw const FormatException(
-          'El servidor no devolvió datos JSON válidos.');
+      throw const FormatException('El servidor no devolvió datos JSON válidos.');
     }
   }
 
   List<dynamic> _asList(dynamic value, String name) {
     if (value is List) return value;
-    if (value is Map &&
-        (value['user_info']?['auth'] == 0 || value['auth'] == 0)) {
+    if (value is Map && (value['user_info']?['auth'] == 0 || value['auth'] == 0)) {
       throw const FormatException('Usuario o contraseña incorrectos.');
     }
     throw FormatException('No se pudo cargar el $name.');
@@ -323,13 +305,6 @@ class IptvApi {
         continue;
       }
       if (metadata != null && line.trim().isNotEmpty && !line.startsWith('#')) {
-        final streamUri = Uri.tryParse(line.trim());
-        if (streamUri == null ||
-            streamUri.scheme != 'https' ||
-            streamUri.host.isEmpty) {
-          metadata = null;
-          continue;
-        }
         final title =
             RegExp(r',(.*)$').firstMatch(metadata)?.group(1)?.trim() ??
                 'Sin título';
@@ -357,30 +332,20 @@ class IptvApi {
       }
     }
     if (items.isEmpty) {
-      throw const FormatException(
-          'La playlist no contiene entradas M3U válidas.');
+      throw const FormatException('La playlist no contiene entradas M3U válidas.');
     }
     return items;
   }
 
-  Future<List<MediaItem>> episodes(
-      PortalConfig config, MediaItem series) async {
+  Future<List<MediaItem>> episodes(PortalConfig config, MediaItem series) async {
     if (config.type == SourceType.m3u) {
-      throw UnsupportedError(
-          'Las listas M3U no incluyen la información de episodios.');
+      throw UnsupportedError('Las listas M3U no incluyen la información de episodios.');
     }
     final uri = Uri.parse('${config.normalizedServer}/player_api.php').replace(
-      queryParameters: {
-        ...config.xtreamQuery,
-        'action': 'get_series_info',
-        'series_id': series.id
-      },
+      queryParameters: {...config.xtreamQuery, 'action': 'get_series_info', 'series_id': series.id},
     );
-    final raw = await http
-        .get(uri, headers: config.headers)
-        .timeout(const Duration(seconds: 20));
-    if (raw.statusCode != 200)
-      throw Exception('El servidor respondió ${raw.statusCode}.');
+    final raw = await http.get(uri, headers: config.headers).timeout(const Duration(seconds: 20));
+    if (raw.statusCode != 200) throw Exception('El servidor respondió ${raw.statusCode}.');
     final data = jsonDecode(utf8.decode(raw.bodyBytes));
     if (data is! Map || data['episodes'] is! Map) {
       throw const FormatException('La serie no tiene episodios disponibles.');
@@ -397,19 +362,15 @@ class IptvApi {
         output.add(MediaItem(
           id: id,
           title: 'T$season · E$episode — ${value['title'] ?? 'Sin título'}',
-          streamUrl:
-              '${config.normalizedServer}/series/${config.username}/${config.password}/$id.$extension',
+          streamUrl: '${config.normalizedServer}/series/${config.username}/${config.password}/$id.$extension',
           kind: MediaKind.series,
           category: 'Temporada $season',
-          logo: value['info'] is Map
-              ? value['info']['movie_image']?.toString()
-              : series.logo,
+          logo: value['info'] is Map ? value['info']['movie_image']?.toString() : series.logo,
           headers: config.headers,
         ));
       }
     });
-    if (output.isEmpty)
-      throw const FormatException('La serie no tiene episodios reproducibles.');
+    if (output.isEmpty) throw const FormatException('La serie no tiene episodios reproducibles.');
     return output;
   }
 }
@@ -440,15 +401,8 @@ class _ConnectPageState extends State<ConnectPage> {
 
   Future<void> connect() async {
     if (server.text.trim().isEmpty ||
-        (type == SourceType.xtream &&
-            (user.text.isEmpty || pass.text.isEmpty))) {
+        (type == SourceType.xtream && (user.text.isEmpty || pass.text.isEmpty))) {
       return _error('Completa los campos requeridos.');
-    }
-    final endpoint = Uri.tryParse(server.text.trim());
-    if (endpoint == null ||
-        endpoint.scheme != 'https' ||
-        endpoint.host.isEmpty) {
-      return _error('Use a valid HTTPS address to protect the connection.');
     }
     setState(() => loading = true);
     final config = PortalConfig(
@@ -652,8 +606,7 @@ class _VistaHomePageState extends State<HomePage> {
   Future<void> _settings() async {
     final value = await Navigator.push<AppSettings>(
       context,
-      MaterialPageRoute(
-          builder: (_) => SettingsPage(settings: widget.settings)),
+      MaterialPageRoute(builder: (_) => SettingsPage(settings: widget.settings)),
     );
     if (value != null) widget.onSettingsChanged(value);
   }
@@ -668,21 +621,14 @@ class _VistaHomePageState extends State<HomePage> {
                 api: widget.api,
                 settings: widget.settings,
                 onBack: () => setState(() => browsing = false),
-                onNavigate: (kind) =>
-                    setState(() => selected = types.indexOf(kind)),
+                onNavigate: (kind) => setState(() => selected = types.indexOf(kind)),
               )
-            : _IptvHome(
-                onOpen: _open,
-                onSettings: _settings,
-                onDisconnect: widget.onDisconnect),
+            : _IptvHome(onOpen: _open, onSettings: _settings, onDisconnect: widget.onDisconnect),
       );
 }
 
 class _IptvHome extends StatelessWidget {
-  const _IptvHome(
-      {required this.onOpen,
-      required this.onSettings,
-      required this.onDisconnect});
+  const _IptvHome({required this.onOpen, required this.onSettings, required this.onDisconnect});
   final ValueChanged<int> onOpen;
   final VoidCallback onSettings;
   final Future<void> Function() onDisconnect;
@@ -690,97 +636,46 @@ class _IptvHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
               colors: [_screen, Color(0xFF15164B), Color(0xFF07081E)]),
         ),
         child: SafeArea(
           child: LayoutBuilder(builder: (context, size) {
             final compact = size.maxWidth < 820;
             return Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: compact ? 26 : 58, vertical: compact ? 22 : 36),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      _BrandMark(size: compact ? 42 : 52),
-                      const SizedBox(width: 13),
-                      Text('StreamVista',
-                          style: TextStyle(
-                              fontSize: compact ? 24 : 31,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.7)),
-                      const SizedBox(width: 18),
-                      Container(width: 1, height: 34, color: Colors.white38),
-                      const SizedBox(width: 18),
-                      const _ClockLabel(),
-                      const Spacer(),
-                      _HeaderAction(
-                          icon: Icons.search_rounded,
-                          label: 'Search',
-                          onTap: () => onOpen(0)),
-                      _HeaderIcon(
-                          icon: Icons.notifications_none_rounded, onTap: () {}),
-                      _HeaderIcon(
-                          icon: Icons.settings_outlined, onTap: onSettings),
-                      _HeaderIcon(
-                          icon: Icons.logout_rounded, onTap: onDisconnect),
-                    ]),
-                    const Spacer(flex: 2),
-                    Center(
-                        child: Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: compact ? 14 : 20,
-                            runSpacing: 14,
-                            children: [
-                          _HomeTile(
-                              icon: Icons.live_tv_rounded,
-                              title: 'Live TV',
-                              subtitle: 'Channels',
-                              selected: true,
-                              onTap: () => onOpen(0)),
-                          _HomeTile(
-                              icon: Icons.local_movies_rounded,
-                              title: 'Movies',
-                              subtitle: 'On demand',
-                              onTap: () => onOpen(1)),
-                          _HomeTile(
-                              icon: Icons.video_library_rounded,
-                              title: 'Series',
-                              subtitle: 'Shows',
-                              onTap: () => onOpen(2)),
-                        ])),
-                    const SizedBox(height: 20),
-                    Center(
-                        child: Wrap(spacing: 12, runSpacing: 10, children: [
-                      _QuickButton(
-                          icon: Icons.playlist_play_rounded,
-                          label: 'Playlists',
-                          onTap: () => onOpen(0)),
-                      _QuickButton(
-                          icon: Icons.history_rounded,
-                          label: 'Catch Up',
-                          onTap: () => onOpen(0)),
-                      _QuickButton(
-                          icon: Icons.favorite_border_rounded,
-                          label: 'Favorites',
-                          onTap: () => onOpen(0)),
-                      _QuickButton(
-                          icon: Icons.settings_rounded,
-                          label: 'Settings',
-                          onTap: onSettings),
-                    ])),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 26 : 58, vertical: compact ? 22 : 36),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  _BrandMark(size: compact ? 42 : 52),
+                  const SizedBox(width: 13),
+                  Text('StreamVista', style: TextStyle(fontSize: compact ? 24 : 31, fontWeight: FontWeight.w800, letterSpacing: -.7)),
+                  if (!compact) ...[
+                    const SizedBox(width: 18), Container(width: 1, height: 34, color: Colors.white38), const SizedBox(width: 18),
+                    const _ClockLabel(), const Spacer(),
+                    _HeaderAction(icon: Icons.search_rounded, label: 'Search', onTap: () => onOpen(0)),
+                    _HeaderIcon(icon: Icons.notifications_none_rounded, onTap: () {}),
+                  ] else
                     const Spacer(),
-                    const Text('Current playlist: Connected',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white70)),
-                    const SizedBox(height: 5),
-                    const Text('Authorized streaming library',
-                        style: TextStyle(color: Colors.white38)),
-                  ]),
+                  _HeaderIcon(icon: Icons.settings_outlined, onTap: onSettings),
+                  _HeaderIcon(icon: Icons.logout_rounded, onTap: onDisconnect),
+                ]),
+                const Spacer(flex: 2),
+                Center(child: Wrap(alignment: WrapAlignment.center, spacing: compact ? 14 : 20, runSpacing: 14, children: [
+                  _HomeTile(icon: Icons.live_tv_rounded, title: 'Live TV', subtitle: 'Channels', selected: true, compact: compact, onTap: () => onOpen(0)),
+                  _HomeTile(icon: Icons.local_movies_rounded, title: 'Movies', subtitle: 'On demand', compact: compact, onTap: () => onOpen(1)),
+                  _HomeTile(icon: Icons.video_library_rounded, title: 'Series', subtitle: 'Shows', compact: compact, onTap: () => onOpen(2)),
+                ])),
+                const SizedBox(height: 20),
+                Center(child: Wrap(spacing: 12, runSpacing: 10, children: [
+                  _QuickButton(icon: Icons.playlist_play_rounded, label: 'Playlists', onTap: () => onOpen(0)),
+                  _QuickButton(icon: Icons.history_rounded, label: 'Catch Up', onTap: () => onOpen(0)),
+                  _QuickButton(icon: Icons.favorite_border_rounded, label: 'Favorites', onTap: () => onOpen(0)),
+                  _QuickButton(icon: Icons.settings_rounded, label: 'Settings', onTap: onSettings),
+                ])),
+                const Spacer(),
+                const Text('Current playlist: Connected', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.white70)),
+                const SizedBox(height: 5), const Text('Authorized streaming library', style: TextStyle(color: Colors.white38)),
+              ]),
             );
           }),
         ),
@@ -788,20 +683,11 @@ class _IptvHome extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
-  const _BrandMark({required this.size});
-  final double size;
+  const _BrandMark({required this.size}); final double size;
   @override
-  Widget build(BuildContext context) => Container(
-      height: size,
-      width: size,
-      decoration: BoxDecoration(
-          color: _accent,
-          borderRadius: BorderRadius.circular(size * .27),
-          boxShadow: [
-            BoxShadow(color: _accent.withValues(alpha: .5), blurRadius: 18)
-          ]),
-      child:
-          Icon(Icons.live_tv_rounded, size: size * .63, color: Colors.white));
+  Widget build(BuildContext context) => Container(height: size, width: size,
+    decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(size * .27), boxShadow: [BoxShadow(color: _accent.withValues(alpha: .5), blurRadius: 18)]),
+    child: Icon(Icons.live_tv_rounded, size: size * .63, color: Colors.white));
 }
 
 class _ClockLabel extends StatelessWidget {
@@ -809,99 +695,31 @@ class _ClockLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    return Text(
-        '${TimeOfDay.fromDateTime(now).format(context)}\n${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
-        style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35));
+    return Text('${TimeOfDay.fromDateTime(now).format(context)}\n${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}', style: const TextStyle(fontWeight: FontWeight.w600, height: 1.35));
   }
 }
 
 class _HeaderIcon extends StatelessWidget {
-  const _HeaderIcon({required this.icon, required this.onTap});
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) =>
-      IconButton(onPressed: onTap, icon: Icon(icon, color: Colors.white));
+  const _HeaderIcon({required this.icon, required this.onTap}); final IconData icon; final VoidCallback onTap;
+  @override Widget build(BuildContext context) => IconButton(onPressed: onTap, icon: Icon(icon, color: Colors.white));
 }
 
 class _HeaderAction extends StatelessWidget {
-  const _HeaderAction(
-      {required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => TextButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 19),
-      label: Text(label),
-      style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: Colors.white10,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)));
+  const _HeaderAction({required this.icon, required this.label, required this.onTap}); final IconData icon; final String label; final VoidCallback onTap;
+  @override Widget build(BuildContext context) => TextButton.icon(onPressed: onTap, icon: Icon(icon, size: 19), label: Text(label), style: TextButton.styleFrom(foregroundColor: Colors.white, backgroundColor: Colors.white10, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12)));
 }
 
 class _HomeTile extends StatelessWidget {
-  const _HomeTile(
-      {required this.icon,
-      required this.title,
-      required this.subtitle,
-      required this.onTap,
-      this.selected = false});
-  final IconData icon;
-  final String title, subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Ink(
-          width: 250,
-          height: 275,
-          decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: selected ? _accent : _surface.withValues(alpha: .84),
-              border: Border.all(
-                  color: selected ? const Color(0xFF8493FF) : Colors.white12,
-                  width: selected ? 2 : 1),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                          color: _accent.withValues(alpha: .38),
-                          blurRadius: 30,
-                          spreadRadius: 2)
-                    ]
-                  : null),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 72, color: Colors.white),
-            const SizedBox(height: 23),
-            Text(title,
-                style:
-                    const TextStyle(fontSize: 27, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                style: const TextStyle(fontSize: 16, color: Colors.white70))
-          ])));
+  const _HomeTile({required this.icon, required this.title, required this.subtitle, required this.onTap, required this.compact, this.selected = false});
+  final IconData icon; final String title, subtitle; final bool compact, selected; final VoidCallback onTap;
+  @override Widget build(BuildContext context) => InkWell(onTap: onTap, borderRadius: BorderRadius.circular(16), child: Ink(
+    width: compact ? 220 : 250, height: compact ? 190 : 275, decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), color: selected ? _accent : _surface.withValues(alpha: .84), border: Border.all(color: selected ? const Color(0xFF8493FF) : Colors.white12, width: selected ? 2 : 1), boxShadow: selected ? [BoxShadow(color: _accent.withValues(alpha: .38), blurRadius: 30, spreadRadius: 2)] : null),
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: compact ? 55 : 72, color: Colors.white), SizedBox(height: compact ? 14 : 23), Text(title, style: TextStyle(fontSize: compact ? 23 : 27, fontWeight: FontWeight.w800)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(fontSize: 16, color: Colors.white70))])));
 }
 
 class _QuickButton extends StatelessWidget {
-  const _QuickButton(
-      {required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => FilledButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF151658),
-          foregroundColor: Colors.white,
-          minimumSize: const Size(170, 50),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))));
+  const _QuickButton({required this.icon, required this.label, required this.onTap}); final IconData icon; final String label; final VoidCallback onTap;
+  @override Widget build(BuildContext context) => FilledButton.icon(onPressed: onTap, icon: Icon(icon), label: Text(label), style: FilledButton.styleFrom(backgroundColor: const Color(0xFF151658), foregroundColor: Colors.white, minimumSize: const Size(170, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))));
 }
 
 class SettingsPage extends StatefulWidget {
@@ -927,8 +745,7 @@ class _SettingsPageState extends State<SettingsPage> {
           title: const Text('Configuración'),
           actions: [
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, AppSettings(profile: profile)),
+              onPressed: () => Navigator.pop(context, AppSettings(profile: profile)),
               child: const Text('Guardar'),
             ),
           ],
@@ -946,16 +763,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: RadioListTile<PlaybackProfile>(
                     value: value,
                     groupValue: profile,
-                    onChanged: (selected) =>
-                        setState(() => profile = selected!),
+                    onChanged: (selected) => setState(() => profile = selected!),
                     title: Text(AppSettings(profile: value).profileLabel),
                     subtitle: Text(switch (value) {
-                      PlaybackProfile.balanced =>
-                        '64 MB de búfer · conexión estable',
-                      PlaybackProfile.hd =>
-                        '128 MB de búfer · recomendado para 1080p',
-                      PlaybackProfile.ultra =>
-                        '256 MB de búfer · recomendado para 4K',
+                      PlaybackProfile.balanced => '64 MB de búfer · conexión estable',
+                      PlaybackProfile.hd => '128 MB de búfer · recomendado para 1080p',
+                      PlaybackProfile.ultra => '256 MB de búfer · recomendado para 4K',
                     }),
                   ),
                 )),
@@ -975,8 +788,8 @@ class CatalogPage extends StatefulWidget {
   const CatalogPage(
       {super.key,
       required this.title,
-      required this.type,
-      required this.config,
+       required this.type,
+       required this.config,
       required this.api,
       required this.settings,
       this.onBack,
@@ -1044,8 +857,7 @@ class _CatalogPageState extends State<CatalogPage> {
               onNavigate: widget.onNavigate,
             );
           }
-          final categories = all.map((item) => item.category).toSet().toList()
-            ..sort();
+          final categories = all.map((item) => item.category).toSet().toList()..sort();
           final selectedCategory =
               categories.contains(category) ? category : 'Todas';
           final shown = all
@@ -1065,17 +877,15 @@ class _CatalogPageState extends State<CatalogPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Row(children: [
-                            IconButton(
-                                onPressed: widget.onBack,
-                                icon: const Icon(Icons.arrow_back_rounded)),
+                            IconButton(onPressed: widget.onBack, icon: const Icon(Icons.arrow_back_rounded)),
                             const SizedBox(width: 6),
-                            _BrandMark(size: 30),
+                            const _BrandMark(size: 30),
                             const SizedBox(width: 10),
                             Text(widget.title,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium
-                                    ?.copyWith(fontWeight: FontWeight.w800)),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800)),
                           ]),
                           Text('${all.length} disponibles',
                               style: Theme.of(context).textTheme.bodySmall),
@@ -1124,17 +934,12 @@ class _CatalogPageState extends State<CatalogPage> {
 }
 
 class _LiveTvBrowser extends StatefulWidget {
-  const _LiveTvBrowser(
-      {required this.items,
-      required this.settings,
-      this.onBack,
-      this.onNavigate});
+  const _LiveTvBrowser({required this.items, required this.settings, this.onBack, this.onNavigate});
   final List<MediaItem> items;
   final AppSettings settings;
   final VoidCallback? onBack;
   final ValueChanged<MediaKind>? onNavigate;
-  @override
-  State<_LiveTvBrowser> createState() => _LiveTvBrowserState();
+  @override State<_LiveTvBrowser> createState() => _LiveTvBrowserState();
 }
 
 class _LiveTvBrowserState extends State<_LiveTvBrowser> {
@@ -1142,43 +947,24 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
   String query = '';
   int selected = 0;
 
-  List<MediaItem> get _shown => widget.items
-      .where((item) =>
-          (category == 'All' || item.category == category) &&
-          item.title.toLowerCase().contains(query.toLowerCase()))
-      .toList();
+  List<MediaItem> get _shown => widget.items.where((item) =>
+      (category == 'All' || item.category == category) &&
+      item.title.toLowerCase().contains(query.toLowerCase())).toList();
 
-  void _open(MediaItem item, int index, List<MediaItem> items,
-          {bool fullscreen = false}) =>
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => PlayerPage(
-                  item: item,
-                  playlist: items,
-                  position: index,
-                  settings: widget.settings,
-                  startFullscreen: fullscreen)));
+  void _open(MediaItem item, int index, List<MediaItem> items) => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => PlayerPage(item: item, playlist: items, position: index, settings: widget.settings)));
 
   @override
   Widget build(BuildContext context) {
-    final categories = widget.items.map((i) => i.category).toSet().toList()
-      ..sort();
+    final categories = widget.items.map((i) => i.category).toSet().toList()..sort();
     final shown = _shown;
     if (shown.isEmpty && selected != 0) selected = 0;
-    final current =
-        shown.isEmpty ? null : shown[selected.clamp(0, shown.length - 1)];
+    final current = shown.isEmpty ? null : shown[selected.clamp(0, shown.length - 1)];
     return Container(
       color: _screen,
       child: SafeArea(
         child: Column(children: [
-          _LiveTopBar(
-              onBack: widget.onBack,
-              onTab: (tab) => widget.onNavigate?.call(tab == 1
-                  ? MediaKind.movie
-                  : tab == 2
-                      ? MediaKind.series
-                      : MediaKind.live)),
+          _LiveTopBar(onBack: widget.onBack, onTab: (tab) => widget.onNavigate?.call(tab == 1 ? MediaKind.movie : tab == 2 ? MediaKind.series : MediaKind.live)),
           Expanded(child: LayoutBuilder(builder: (context, size) {
             if (size.maxWidth < 900) return _compactView(shown, current);
             return Row(children: [
@@ -1194,342 +980,127 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
     );
   }
 
-  Widget _compactView(List<MediaItem> shown, MediaItem? current) =>
-      Column(children: [
-        _searchField(),
-        SizedBox(
-          height: 49,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            children: ['All', ...widget.items.map((i) => i.category).toSet()]
-                .map((name) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text(name),
-                        selected: category == name,
-                        onSelected: (_) => setState(() {
-                          category = name;
-                          selected = 0;
-                        }),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ),
-        Expanded(child: _channelPane(shown)),
-        if (current != null)
-          SizedBox(height: 245, child: _detailsPane(current, shown)),
-      ]);
+  Widget _compactView(List<MediaItem> shown, MediaItem? current) => Column(children: [
+    _searchField(),
+    SizedBox(height: 49, child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 14), children: ['All', ...widget.items.map((i) => i.category).toSet()].map((name) => Padding(padding: const EdgeInsets.only(right: 8), child: ChoiceChip(label: Text(name), selected: category == name, onSelected: (_) => setState(() { category = name; selected = 0; })))).toList())),
+    Expanded(child: _channelPane(shown)),
+    if (current != null) SizedBox(height: 245, child: _detailsPane(current, shown)),
+  ]);
 
   Widget _groupPane(List<String> categories) => Container(
-        color: const Color(0xFF0D1033),
-        child: Column(children: [
-          _searchField(),
-          Expanded(
-              child: ListView(
-                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 14),
-                  children: [
-                _categoryRow('Recently Viewed', Icons.history_rounded, 0),
-                _categoryRow(
-                    'All', Icons.grid_view_rounded, widget.items.length),
-                const Padding(
-                    padding: EdgeInsets.fromLTRB(10, 16, 10, 6),
-                    child: Text('CHANNEL GROUPS',
-                        style: TextStyle(
-                            color: Colors.white38,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.1))),
-                ...categories.map((value) => _categoryRow(
-                    value,
-                    Icons.play_circle_outline_rounded,
-                    widget.items.where((i) => i.category == value).length)),
-              ])),
-        ]),
-      );
+    color: const Color(0xFF0D1033),
+    child: Column(children: [
+      _searchField(),
+      Expanded(child: ListView(padding: const EdgeInsets.fromLTRB(12, 2, 12, 14), children: [
+        _categoryRow('Recently Viewed', Icons.history_rounded, 0),
+        _categoryRow('All', Icons.grid_view_rounded, widget.items.length),
+        const Padding(padding: EdgeInsets.fromLTRB(10, 16, 10, 6), child: Text('CHANNEL GROUPS', style: TextStyle(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1))),
+        ...categories.map((value) => _categoryRow(value, Icons.play_circle_outline_rounded, widget.items.where((i) => i.category == value).length)),
+      ])),
+    ]),
+  );
 
   Widget _categoryRow(String name, IconData icon, int count) {
-    final active =
-        category == name || (name == 'Recently Viewed' && category == 'All');
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Material(
-          color: active ? const Color(0xFF20255F) : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-          child: InkWell(
-            onTap: () => setState(() {
-              category = name == 'Recently Viewed' ? 'All' : name;
-              selected = 0;
-            }),
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
-                child: Row(children: [
-                  Icon(icon,
-                      size: 18,
-                      color: active ? const Color(0xFFE7F01A) : Colors.white70),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: Text(name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontWeight:
-                                  active ? FontWeight.w800 : FontWeight.w500,
-                              color: active
-                                  ? const Color(0xFFE7F01A)
-                                  : Colors.white))),
-                  Text('$count',
-                      style: TextStyle(
-                          color:
-                              active ? const Color(0xFFE7F01A) : Colors.white70,
-                          fontWeight: FontWeight.w700)),
-                ])),
-          )),
+    final active = category == name || (name == 'Recently Viewed' && category == 'All');
+    return Padding(padding: const EdgeInsets.only(bottom: 5), child: Material(
+      color: active ? const Color(0xFF20255F) : Colors.transparent,
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(onTap: () => setState(() { category = name == 'Recently Viewed' ? 'All' : name; selected = 0; }), borderRadius: BorderRadius.circular(6), child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13), child: Row(children: [
+          Icon(icon, size: 18, color: active ? const Color(0xFFE7F01A) : Colors.white70), const SizedBox(width: 10),
+          Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: active ? FontWeight.w800 : FontWeight.w500, color: active ? const Color(0xFFE7F01A) : Colors.white))),
+          Text('$count', style: TextStyle(color: active ? const Color(0xFFE7F01A) : Colors.white70, fontWeight: FontWeight.w700)),
+        ])),
+      )),
     );
   }
 
-  Widget _searchField() => Padding(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      child: TextField(
-        onChanged: (value) => setState(() {
-          query = value;
-          selected = 0;
-        }),
-        style: const TextStyle(fontSize: 14),
-        decoration: InputDecoration(
-            hintText: 'Search',
-            prefixIcon: const Icon(Icons.search_rounded, size: 20),
-            contentPadding: EdgeInsets.zero,
-            fillColor: const Color(0xFF17194B),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(22),
-                borderSide: const BorderSide(color: Colors.white54))),
-      ));
+  Widget _searchField() => Padding(padding: const EdgeInsets.fromLTRB(14, 14, 14, 12), child: TextField(
+    onChanged: (value) => setState(() { query = value; selected = 0; }),
+    style: const TextStyle(fontSize: 14),
+    decoration: InputDecoration(hintText: 'Search', prefixIcon: const Icon(Icons.search_rounded, size: 20), contentPadding: EdgeInsets.zero, fillColor: const Color(0xFF17194B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: const BorderSide(color: Colors.white54))),
+  ));
 
   Widget _channelPane(List<MediaItem> shown) => Container(
-        color: const Color(0xFF10133C),
-        child: shown.isEmpty
-            ? const Center(child: Text('No channels found'))
-            : ListView.builder(
-                padding: const EdgeInsets.fromLTRB(10, 12, 10, 16),
-                itemCount: shown.length,
-                itemBuilder: (context, index) {
-                  final item = shown[index];
-                  final active = selected == index;
-                  return Padding(
-                      padding: const EdgeInsets.only(bottom: 7),
-                      child: Material(
-                          color: active ? _accent : const Color(0xFF191B52),
-                          borderRadius: BorderRadius.circular(6),
-                          child: InkWell(
-                            onTap: () => setState(() => selected = index),
-                            onDoubleTap: () =>
-                                _open(item, index, shown, fullscreen: true),
-                            borderRadius: BorderRadius.circular(6),
-                            child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 13),
-                                child: Row(children: [
-                                  SizedBox(
-                                      width: 28,
-                                      child: Text('${index + 1}',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              color: active
-                                                  ? const Color(0xFFE7F01A)
-                                                  : Colors.white70))),
-                                  _ChannelLogo(item: item, active: active),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                      child: Text(item.title,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                              fontWeight: active
-                                                  ? FontWeight.w800
-                                                  : FontWeight.w600))),
-                                  if (active)
-                                    const Icon(Icons.play_arrow_rounded,
-                                        size: 20),
-                                ])),
-                          )));
-                },
-              ),
-      );
+    color: const Color(0xFF10133C),
+    child: shown.isEmpty ? const Center(child: Text('No channels found')) : ListView.builder(
+      padding: const EdgeInsets.fromLTRB(10, 12, 10, 16), itemCount: shown.length,
+      itemBuilder: (context, index) {
+        final item = shown[index]; final active = selected == index;
+        return Padding(padding: const EdgeInsets.only(bottom: 7), child: Material(color: active ? _accent : const Color(0xFF191B52), borderRadius: BorderRadius.circular(6), child: InkWell(
+          onTap: () => setState(() => selected = index),
+          onDoubleTap: () => _open(item, index, shown),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13), child: Row(children: [
+            SizedBox(width: 28, child: Text('${index + 1}', style: TextStyle(fontWeight: FontWeight.w800, color: active ? const Color(0xFFE7F01A) : Colors.white70))),
+            _ChannelLogo(item: item, active: active), const SizedBox(width: 10),
+            Expanded(child: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: active ? FontWeight.w800 : FontWeight.w600))),
+            if (active) const Icon(Icons.play_arrow_rounded, size: 20),
+          ])),
+        )));
+      },
+    ),
+  );
 
   Widget _detailsPane(MediaItem? current, List<MediaItem> shown) {
     if (current == null) return const Center(child: Text('Select a channel'));
-    return Container(
-        color: const Color(0xFF0C0E30),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Expanded(
-                flex: 7,
-                child: ClipRRect(
-                    borderRadius: BorderRadius.circular(5),
-                    child: Stack(fit: StackFit.expand, children: [
-                      _PreviewArtwork(item: current),
-                      const Positioned(left: 12, top: 12, child: _LivePill()),
-                      const Positioned(
-                          right: 12,
-                          bottom: 12,
-                          child: Icon(Icons.fullscreen_rounded,
-                              color: Colors.white70)),
-                    ]))),
-            const SizedBox(height: 13),
-            Row(children: [
-              _ChannelLogo(item: current, active: true, large: true),
-              const SizedBox(width: 11),
-              Expanded(
-                  child: Text(current.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w800)))
-            ]),
-            const SizedBox(height: 12),
-            const Text('NOW PLAYING',
-                style: TextStyle(
-                    color: Color(0xFFE7F01A),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8)),
-            const SizedBox(height: 4),
-            Text('Live broadcast on ${current.category}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            const Text(
-                'Select a channel to preview it. Press play or double-click to start watching.',
-                style: TextStyle(fontSize: 12, color: Colors.white60)),
-            const Spacer(),
-            Row(children: [
-              FilledButton.icon(
-                  onPressed: () => _open(current, selected, shown),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Watch live'),
-                  style: FilledButton.styleFrom(
-                      backgroundColor: _accent, foregroundColor: Colors.white)),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.favorite_border_rounded),
-                  label: const Text('Favorite')),
-            ]),
-          ]),
-        ));
+    return Container(color: const Color(0xFF0C0E30), child: Padding(
+      padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(flex: 7, child: ClipRRect(borderRadius: BorderRadius.circular(5), child: Stack(fit: StackFit.expand, children: [
+          _PreviewArtwork(item: current),
+          const Positioned(left: 12, top: 12, child: _LivePill()),
+          const Positioned(right: 12, bottom: 12, child: Icon(Icons.fullscreen_rounded, color: Colors.white70)),
+        ]))),
+        const SizedBox(height: 13),
+        Row(children: [_ChannelLogo(item: current, active: true, large: true), const SizedBox(width: 11), Expanded(child: Text(current.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)))]),
+        const SizedBox(height: 12),
+        const Text('NOW PLAYING', style: TextStyle(color: Color(0xFFE7F01A), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: .8)),
+        const SizedBox(height: 4),
+        Text('Live broadcast on ${current.category}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        const Text('Select a channel to preview it. Press play or double-click to start watching.', style: TextStyle(fontSize: 12, color: Colors.white60)),
+        const Spacer(),
+        Row(children: [
+          FilledButton.icon(onPressed: () => _open(current, selected, shown), icon: const Icon(Icons.play_arrow_rounded), label: const Text('Watch live'), style: FilledButton.styleFrom(backgroundColor: _accent, foregroundColor: Colors.white)),
+          const SizedBox(width: 8), OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.favorite_border_rounded), label: const Text('Favorite')),
+        ]),
+      ]),
+    ));
   }
 }
 
 class _LiveTopBar extends StatelessWidget {
   const _LiveTopBar({required this.onBack, required this.onTab});
-  final VoidCallback? onBack;
-  final ValueChanged<int> onTab;
-  @override
-  Widget build(BuildContext context) => Container(
-        height: 72,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        color: const Color(0xFF0C0E30),
-        child: Row(children: [
-          IconButton(
-              onPressed: onBack, icon: const Icon(Icons.arrow_back_rounded)),
-          const SizedBox(width: 5),
-          _BrandMark(size: 32),
-          const SizedBox(width: 12),
-          _TopTab(label: 'Live TV', selected: true, onTap: () => onTab(0)),
-          _TopTab(label: 'Movies', onTap: () => onTab(1)),
-          _TopTab(label: 'Series', onTap: () => onTab(2)),
-          const Spacer(),
-          const Icon(Icons.search_rounded, color: Colors.white70),
-          const SizedBox(width: 16),
-          const Icon(Icons.account_circle_outlined, color: Colors.white70),
-        ]),
-      );
+  final VoidCallback? onBack; final ValueChanged<int> onTab;
+  @override Widget build(BuildContext context) => Container(
+    height: 72, padding: const EdgeInsets.symmetric(horizontal: 20), color: const Color(0xFF0C0E30),
+    child: Row(children: [
+      IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back_rounded)), const SizedBox(width: 5), const _BrandMark(size: 32), const SizedBox(width: 12),
+      _TopTab(label: 'Live TV', selected: true, onTap: () => onTab(0)), _TopTab(label: 'Movies', onTap: () => onTab(1)), _TopTab(label: 'Series', onTap: () => onTab(2)),
+      const Spacer(), const Icon(Icons.search_rounded, color: Colors.white70), const SizedBox(width: 16), const Icon(Icons.account_circle_outlined, color: Colors.white70),
+    ]),
+  );
 }
 
 class _TopTab extends StatelessWidget {
-  const _TopTab(
-      {required this.label, required this.onTap, this.selected = false});
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-  @override
-  Widget build(BuildContext context) => Padding(
-      padding: const EdgeInsets.only(left: 10),
-      child: TextButton(
-          onPressed: onTap,
-          style: TextButton.styleFrom(
-              foregroundColor:
-                  selected ? const Color(0xFFE7F01A) : Colors.white,
-              backgroundColor:
-                  selected ? const Color(0xFF1A1D58) : Colors.transparent,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 19, vertical: 12)),
-          child: Text(label,
-              style: const TextStyle(fontWeight: FontWeight.w800))));
+  const _TopTab({required this.label, required this.onTap, this.selected = false}); final String label; final VoidCallback onTap; final bool selected;
+  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(left: 10), child: TextButton(onPressed: onTap, style: TextButton.styleFrom(foregroundColor: selected ? const Color(0xFFE7F01A) : Colors.white, backgroundColor: selected ? const Color(0xFF1A1D58) : Colors.transparent, padding: const EdgeInsets.symmetric(horizontal: 19, vertical: 12)), child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800))));
 }
 
 class _ChannelLogo extends StatelessWidget {
-  const _ChannelLogo(
-      {required this.item, required this.active, this.large = false});
-  final MediaItem item;
-  final bool active, large;
-  @override
-  Widget build(BuildContext context) => Container(
-      width: large ? 42 : 27,
-      height: large ? 42 : 27,
-      decoration: BoxDecoration(
-          color: active ? Colors.white : Colors.white12,
-          borderRadius: BorderRadius.circular(5)),
-      clipBehavior: Clip.antiAlias,
-      child: item.logo?.isNotEmpty == true
-          ? Image.network(item.logo!,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Icon(Icons.live_tv_rounded,
-                  color: active ? _accent : Colors.white54,
-                  size: large ? 26 : 17))
-          : Icon(Icons.live_tv_rounded,
-              color: active ? _accent : Colors.white54, size: large ? 26 : 17));
+  const _ChannelLogo({required this.item, required this.active, this.large = false}); final MediaItem item; final bool active, large;
+  @override Widget build(BuildContext context) => Container(width: large ? 42 : 27, height: large ? 42 : 27, decoration: BoxDecoration(color: active ? Colors.white : Colors.white12, borderRadius: BorderRadius.circular(5)), clipBehavior: Clip.antiAlias, child: item.logo?.isNotEmpty == true ? Image.network(item.logo!, fit: BoxFit.contain, errorBuilder: (_, __, ___) => Icon(Icons.live_tv_rounded, color: active ? _accent : Colors.white54, size: large ? 26 : 17)) : Icon(Icons.live_tv_rounded, color: active ? _accent : Colors.white54, size: large ? 26 : 17));
 }
 
 class _PreviewArtwork extends StatelessWidget {
-  const _PreviewArtwork({required this.item});
-  final MediaItem item;
-  @override
-  Widget build(BuildContext context) => item.logo?.isNotEmpty == true
-      ? Image.network(item.logo!,
-          fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback())
-      : _fallback();
-  Widget _fallback() => Container(
-      decoration: const BoxDecoration(
-          gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-            Color(0xFF233D9B),
-            Color(0xFF0A123B),
-            Color(0xFF211760)
-          ])),
-      child: const Center(
-          child: Icon(Icons.live_tv_rounded, size: 82, color: Colors.white30)));
+  const _PreviewArtwork({required this.item}); final MediaItem item;
+  @override Widget build(BuildContext context) => item.logo?.isNotEmpty == true ? Image.network(item.logo!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => _fallback()) : _fallback();
+  Widget _fallback() => Container(decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF233D9B), Color(0xFF0A123B), Color(0xFF211760)])), child: const Center(child: Icon(Icons.live_tv_rounded, size: 82, color: Colors.white30)));
 }
 
 class _LivePill extends StatelessWidget {
   const _LivePill();
-  @override
-  Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-          color: const Color(0xFFF03447),
-          borderRadius: BorderRadius.circular(14)),
-      child: const Text('LIVE TV',
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)));
+  @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5), decoration: BoxDecoration(color: const Color(0xFFF03447), borderRadius: BorderRadius.circular(14)), child: const Text('LIVE TV', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)));
 }
 
 class _CategorySidebar extends StatefulWidget {
@@ -1566,8 +1137,7 @@ class _CategorySidebarState extends State<_CategorySidebar> {
             controller: controller,
             padding: const EdgeInsets.fromLTRB(10, 18, 10, 18),
             children: [
-              Text('CATEGORÍAS',
-                  style: Theme.of(context).textTheme.labelMedium),
+              Text('CATEGORÍAS', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 10),
               ...widget.categories.map((value) => Padding(
                     padding: const EdgeInsets.only(bottom: 4),
@@ -1575,10 +1145,8 @@ class _CategorySidebarState extends State<_CategorySidebar> {
                       dense: true,
                       selected: value == widget.selected,
                       selectedTileColor: _accent.withValues(alpha: .18),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      title: Text(value,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      title: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
                       onTap: () => widget.onSelected(value),
                     ),
                   )),
@@ -1610,18 +1178,17 @@ class MediaCard extends StatelessWidget {
       onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (_) =>
-                  item.kind == MediaKind.series && item.streamUrl.isEmpty
-                      ? SeriesPage(
-                          series: item,
-                          config: config,
-                          api: api,
-                          settings: settings)
-                      : PlayerPage(
-                          item: item,
-                          playlist: playlist,
-                          position: position,
-                          settings: settings))),
+              builder: (_) => item.kind == MediaKind.series && item.streamUrl.isEmpty
+                  ? SeriesPage(
+                      series: item,
+                      config: config,
+                      api: api,
+                      settings: settings)
+                  : PlayerPage(
+                      item: item,
+                      playlist: playlist,
+                      position: position,
+                      settings: settings))),
       child: Card(
           clipBehavior: Clip.antiAlias,
           child:
@@ -1698,13 +1265,10 @@ class _SeriesPageState extends State<SeriesPage> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(
-                        'No se pudieron cargar los episodios.\n${snapshot.error}',
-                        textAlign: TextAlign.center),
+                    Text('No se pudieron cargar los episodios.\n${snapshot.error}', textAlign: TextAlign.center),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
-                      onPressed: () => setState(() => future =
-                          widget.api.episodes(widget.config, widget.series)),
+                      onPressed: () => setState(() => future = widget.api.episodes(widget.config, widget.series)),
                       icon: const Icon(Icons.refresh),
                       label: const Text('Reintentar'),
                     ),
@@ -1749,13 +1313,11 @@ class PlayerPage extends StatefulWidget {
     required this.settings,
     this.playlist = const [],
     this.position = 0,
-    this.startFullscreen = false,
   });
   final MediaItem item;
   final AppSettings settings;
   final List<MediaItem> playlist;
   final int position;
-  final bool startFullscreen;
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
@@ -1764,7 +1326,6 @@ class _PlayerPageState extends State<PlayerPage> {
   late final Player player;
   late final VideoController controller;
   final channelFocus = FocusNode();
-  final videoKey = GlobalKey<VideoState>();
   late final List<MediaItem> playlist;
   late int position;
   Timer? nowPlayingTimer;
@@ -1788,23 +1349,11 @@ class _PlayerPageState extends State<PlayerPage> {
     controller = VideoController(player);
     channelFocus.onKeyEvent = _onKey;
     _openCurrent();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => channelFocus.requestFocus());
-    if (widget.startFullscreen) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await Future<void>.delayed(const Duration(milliseconds: 180));
-        if (mounted) await videoKey.currentState?.enterFullscreen();
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => channelFocus.requestFocus());
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    if (event.logicalKey == LogicalKeyboardKey.escape ||
-        event.logicalKey == LogicalKeyboardKey.goBack) {
-      Navigator.maybePop(context);
-      return KeyEventResult.handled;
-    }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
         event.logicalKey == LogicalKeyboardKey.pageDown) {
       _changeChannel(1);
@@ -1828,8 +1377,7 @@ class _PlayerPageState extends State<PlayerPage> {
       } catch (error) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text('No se pudo abrir esta transmisión: $error')),
+            SnackBar(content: Text('No se pudo abrir esta transmisión: $error')),
           );
         }
       }
@@ -1920,23 +1468,18 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            toolbarHeight: 0,
-            backgroundColor: Colors.transparent,
-            surfaceTintColor: Colors.transparent,
-            title: Text(current.title),
-            actions: [
-              IconButton(
-                tooltip: 'Volumen',
-                onPressed: _showVolumeControl,
-                icon: const Icon(Icons.volume_up_outlined),
-              ),
-              IconButton(
-                tooltip: 'Información de reproducción',
-                onPressed: _showPlaybackInfo,
-                icon: const Icon(Icons.info_outline),
-              ),
-            ]),
+        appBar: AppBar(toolbarHeight: 0, backgroundColor: Colors.transparent, surfaceTintColor: Colors.transparent, title: Text(current.title), actions: [
+          IconButton(
+            tooltip: 'Volumen',
+            onPressed: _showVolumeControl,
+            icon: const Icon(Icons.volume_up_outlined),
+          ),
+          IconButton(
+            tooltip: 'Información de reproducción',
+            onPressed: _showPlaybackInfo,
+            icon: const Icon(Icons.info_outline),
+          ),
+        ]),
         body: LayoutBuilder(builder: (context, constraints) {
           final playerView = Column(children: [
             Expanded(
@@ -1952,75 +1495,17 @@ class _PlayerPageState extends State<PlayerPage> {
                           displaySeekBar: false,
                           visibleOnMount: true,
                           controlsHoverDuration: Duration(seconds: 10),
-                          controlsTransitionDuration:
-                              Duration(milliseconds: 180),
+                          controlsTransitionDuration: Duration(milliseconds: 180),
                           volumeGesture: true,
                         ),
-                        fullscreen: MaterialVideoControlsThemeData(
+                        fullscreen: const MaterialVideoControlsThemeData(
                           displaySeekBar: false,
                           visibleOnMount: true,
                           controlsHoverDuration: Duration(seconds: 10),
-                          controlsTransitionDuration:
-                              Duration(milliseconds: 180),
+                          controlsTransitionDuration: Duration(milliseconds: 180),
                           volumeGesture: true,
-                          backdropColor: Colors.black38,
-                          buttonBarHeight: 64,
-                          topButtonBarMargin:
-                              const EdgeInsets.symmetric(horizontal: 18),
-                          bottomButtonBarMargin:
-                              const EdgeInsets.fromLTRB(22, 0, 22, 22),
-                          topButtonBar: [
-                            _FullscreenChannelHeader(item: current),
-                          ],
-                          primaryButtonBar: [
-                            _FullscreenControlButton(
-                                icon: Icons.skip_previous_rounded,
-                                onPressed: () => _changeChannel(-1)),
-                            const SizedBox(width: 18),
-                            StreamBuilder<bool>(
-                              stream: player.stream.playing,
-                              initialData: player.state.playing,
-                              builder: (context, snapshot) =>
-                                  _FullscreenControlButton(
-                                icon: snapshot.data == true
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                primary: true,
-                                onPressed: () =>
-                                    unawaited(player.playOrPause()),
-                              ),
-                            ),
-                            const SizedBox(width: 18),
-                            _FullscreenControlButton(
-                                icon: Icons.skip_next_rounded,
-                                onPressed: () => _changeChannel(1)),
-                          ],
-                          bottomButtonBar: [
-                            _FullscreenTransmissionInfo(item: current),
-                            const Spacer(),
-                            IconButton(
-                                tooltip: 'Subtitles',
-                                onPressed: _showPlaybackInfo,
-                                icon: const Icon(Icons.subtitles_outlined)),
-                            IconButton(
-                                tooltip: 'Audio',
-                                onPressed: _showVolumeControl,
-                                icon: const Icon(Icons.graphic_eq_rounded)),
-                            IconButton(
-                                tooltip: 'Favorite',
-                                onPressed: () {},
-                                icon:
-                                    const Icon(Icons.favorite_border_rounded)),
-                            IconButton(
-                                tooltip: 'Exit fullscreen',
-                                onPressed: () => unawaited(
-                                    videoKey.currentState?.exitFullscreen()),
-                                icon:
-                                    const Icon(Icons.fullscreen_exit_rounded)),
-                          ],
                         ),
                         child: Video(
-                          key: videoKey,
                           controller: controller,
                           controls: MaterialVideoControls,
                           focusNode: channelFocus,
@@ -2032,8 +1517,7 @@ class _PlayerPageState extends State<PlayerPage> {
                     top: 12,
                     left: 16,
                     right: 16,
-                    child: AbsorbPointer(
-                      absorbing: false,
+                    child: IgnorePointer(
                       child: AnimatedOpacity(
                         opacity: showNowPlaying ? 1 : 0,
                         duration: const Duration(milliseconds: 250),
@@ -2043,21 +1527,15 @@ class _PlayerPageState extends State<PlayerPage> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             child: Row(children: [
                               const _LivePill(),
                               const SizedBox(width: 10),
-                              Expanded(
-                                  child: Text(current.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800))),
-                              IconButton(
-                                  onPressed: () => Navigator.maybePop(context),
-                                  icon: const Icon(Icons.arrow_back_rounded,
-                                      size: 20)),
+                              Expanded(child: Text(current.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800))),
+                              IconButton(onPressed: () => Navigator.maybePop(context), icon: const Icon(Icons.arrow_back_rounded, size: 20)),
                             ]),
                           ),
                         ),
@@ -2071,78 +1549,6 @@ class _PlayerPageState extends State<PlayerPage> {
           return playerView;
         }),
       );
-}
-
-class _FullscreenChannelHeader extends StatelessWidget {
-  const _FullscreenChannelHeader({required this.item});
-  final MediaItem item;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Container(
-          height: 54,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(children: [
-            _ChannelLogo(item: item, active: true, large: true),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(item.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w900)),
-            ),
-            const SizedBox(width: 12),
-            const _LivePill(),
-          ]),
-        ),
-      );
-}
-
-class _FullscreenControlButton extends StatelessWidget {
-  const _FullscreenControlButton(
-      {required this.icon, required this.onPressed, this.primary = false});
-  final IconData icon;
-  final VoidCallback onPressed;
-  final bool primary;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: primary ? _accent : Colors.black45,
-        shape: const CircleBorder(),
-        child: IconButton(
-          onPressed: onPressed,
-          icon: Icon(icon, size: primary ? 39 : 28),
-          color: Colors.white,
-          iconSize: primary ? 39 : 28,
-          padding: EdgeInsets.all(primary ? 16 : 11),
-        ),
-      );
-}
-
-class _FullscreenTransmissionInfo extends StatelessWidget {
-  const _FullscreenTransmissionInfo({required this.item});
-  final MediaItem item;
-
-  @override
-  Widget build(BuildContext context) =>
-      Row(mainAxisSize: MainAxisSize.min, children: [
-        const _LivePill(),
-        const SizedBox(width: 10),
-        const Text('LIVE', style: TextStyle(fontWeight: FontWeight.w900)),
-        const SizedBox(width: 9),
-        Container(width: 1, height: 18, color: Colors.white38),
-        const SizedBox(width: 9),
-        Text(item.category,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, color: Colors.white70)),
-      ]);
 }
 
 class _ChannelSidebar extends StatefulWidget {
@@ -2192,10 +1598,7 @@ class _ChannelSidebarState extends State<_ChannelSidebar> {
                     dense: true,
                     selected: active,
                     selectedTileColor: _accent.withValues(alpha: .2),
-                    leading: Icon(
-                        active
-                            ? Icons.play_circle_filled
-                            : Icons.play_circle_outline,
+                    leading: Icon(active ? Icons.play_circle_filled : Icons.play_circle_outline,
                         color: active ? _accent : null),
                     title: Text(item.title,
                         maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -2262,10 +1665,8 @@ class _PlaybackInfo extends StatelessWidget {
                     _InfoField(
                         label: 'TRANSMISSION',
                         value: '$transmission · $state',
-                        color:
-                            online ? Colors.greenAccent : Colors.amberAccent),
-                    _InfoField(
-                        label: 'SOURCE', value: _streamFormat(item.streamUrl)),
+                        color: online ? Colors.greenAccent : Colors.amberAccent),
+                    _InfoField(label: 'SOURCE', value: _streamFormat(item.streamUrl)),
                     if (hasChannelList)
                       const _InfoField(
                         label: 'CHANGE CHANNEL',
