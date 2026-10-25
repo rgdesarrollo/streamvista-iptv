@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui' show ImageFilter;
+import 'dart:ui' show FontFeature, ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -211,6 +211,98 @@ class MediaItem {
 
 enum MediaKind { live, movie, series }
 
+const _vodExtensions = {
+  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm', 'mpg', 'mpeg',
+  '3gp', 'divx', 'ogv',
+};
+
+String _normalize(String text) {
+  const from = 'áàäâãéèëêíìïîóòöôõúùüûñç';
+  const to = 'aaaaaeeeeiiiiooooouuuunc';
+  final lower = text.toLowerCase();
+  final out = StringBuffer();
+  for (final ch in lower.split('')) {
+    final i = from.indexOf(ch);
+    out.write(i >= 0 ? to[i] : ch);
+  }
+  return out.toString();
+}
+
+bool _hasWord(String text, List<String> words) =>
+    words.any((w) => RegExp('(^|[^a-z])$w([^a-z]|\$)').hasMatch(text));
+
+/// Decides whether an M3U entry is live TV, a movie or a series episode.
+/// Signals are checked from most to least reliable: an explicit type
+/// attribute, the Xtream-style URL path (/live/, /movie/, /series/), an
+/// episode pattern in the title, a video-file extension, the group name and
+/// finally the EXTINF duration. Anything left over is live TV.
+MediaKind classifyM3uEntry({
+  required String metadata,
+  required String url,
+  required String group,
+  required String title,
+}) {
+  final type = RegExp(r'(?:tvg-type|type)="([^"]*)"', caseSensitive: false)
+      .firstMatch(metadata)
+      ?.group(1);
+  if (type != null) {
+    final t = _normalize(type);
+    if (_hasWord(t, ['series', 'serie', 'show', 'shows', 'episode'])) {
+      return MediaKind.series;
+    }
+    if (_hasWord(t, ['movie', 'movies', 'vod', 'film', 'pelicula'])) {
+      return MediaKind.movie;
+    }
+    if (_hasWord(t, ['live', 'channel', 'tv', 'stream'])) return MediaKind.live;
+  }
+
+  final uri = Uri.tryParse(url);
+  final segments =
+      uri?.pathSegments.map((e) => e.toLowerCase()).toList() ?? const [];
+  if (segments.contains('series')) return MediaKind.series;
+  if (segments.contains('movie') || segments.contains('movies')) {
+    return MediaKind.movie;
+  }
+  if (segments.contains('live')) return MediaKind.live;
+
+  final g = _normalize(group);
+  final n = _normalize(title);
+  const seriesWords = [
+    'series', 'serie', 'tv shows', 'shows', 'novelas', 'telenovelas',
+    'temporada', 'temporadas', 'season', 'seasons', 'doramas', 'anime',
+    'docuseries', 'miniseries',
+  ];
+  const movieWords = [
+    'movies', 'movie', 'films', 'film', 'peliculas', 'pelicula', 'cine',
+    'cinema', 'vod', 'filmes', 'estrenos',
+  ];
+  const liveWords = ['canal', 'canales', 'channel', 'channels', '24/7', 'live'];
+
+  final episode = RegExp(
+          r'(^|[^a-z0-9])(s\d{1,2}\s*e\d{1,3}|t\d{1,2}\s*e\d{1,3}|\d{1,2}x\d{2})([^a-z0-9]|$)')
+      .hasMatch(n);
+  if (episode) return MediaKind.series;
+
+  final last = segments.isEmpty ? '' : segments.last;
+  final dot = last.lastIndexOf('.');
+  final ext = dot >= 0 ? last.substring(dot + 1) : '';
+  if (_vodExtensions.contains(ext)) {
+    return _hasWord(g, seriesWords) ? MediaKind.series : MediaKind.movie;
+  }
+
+  if (!_hasWord(g, liveWords)) {
+    if (_hasWord(g, seriesWords)) return MediaKind.series;
+    if (_hasWord(g, movieWords)) return MediaKind.movie;
+  }
+
+  final duration = double.tryParse(
+          RegExp(r'^#EXTINF:\s*(-?[\d.]+)').firstMatch(metadata)?.group(1) ??
+              '') ??
+      -1;
+  if (duration > 0) return MediaKind.movie;
+  return MediaKind.live;
+}
+
 class IptvApi {
   Future<void> validate(PortalConfig config) async {
     if (config.type == SourceType.m3u) {
@@ -265,9 +357,13 @@ class IptvApi {
         MediaKind.movie => 'movie',
         MediaKind.series => 'series'
       };
-      final stream = kind == MediaKind.series
+      final generatedStream = kind == MediaKind.series
           ? ''
           : '${config.normalizedServer}/$segment/${config.username}/${config.password}/$id.$extension';
+      final stream = _sourceOrGenerated(
+        x['direct_source']?.toString(),
+        generatedStream,
+      );
       return MediaItem(
           id: id,
           title: (x['name'] ?? 'Sin título').toString(),
@@ -337,13 +433,8 @@ class IptvApi {
                 'TV en vivo';
         final logo =
             RegExp(r'tvg-logo="([^"]*)"').firstMatch(metadata)?.group(1);
-        final groupLower = group.toLowerCase();
-        final itemKind =
-            groupLower.contains('movie') || groupLower.contains('película')
-                ? MediaKind.movie
-                : groupLower.contains('series')
-                    ? MediaKind.series
-                    : MediaKind.live;
+        final itemKind = classifyM3uEntry(
+            metadata: metadata, url: line.trim(), group: group, title: title);
         items.add(MediaItem(
             id: line.hashCode.toString(),
             title: title,
@@ -396,8 +487,10 @@ class IptvApi {
         output.add(MediaItem(
           id: id,
           title: 'T$season · E$episode — ${value['title'] ?? 'Sin título'}',
-          streamUrl:
-              '${config.normalizedServer}/series/${config.username}/${config.password}/$id.$extension',
+          streamUrl: _sourceOrGenerated(
+            value['direct_source']?.toString(),
+            '${config.normalizedServer}/series/${config.username}/${config.password}/$id.$extension',
+          ),
           kind: MediaKind.series,
           category: 'Temporada $season',
           logo: value['info'] is Map
@@ -410,6 +503,12 @@ class IptvApi {
     if (output.isEmpty)
       throw const FormatException('La serie no tiene episodios reproducibles.');
     return output;
+  }
+
+  String _sourceOrGenerated(String? source, String generated) {
+    final direct = source?.trim();
+    final uri = direct == null ? null : Uri.tryParse(direct);
+    return uri?.hasScheme == true ? direct! : generated;
   }
 }
 
@@ -1927,13 +2026,13 @@ class _PlayerPageState extends State<PlayerPage> {
   late final Player player;
   late final VideoController controller;
   final channelFocus = FocusNode();
+  final videoKey = GlobalKey<VideoState>();
   late final List<MediaItem> playlist;
   late int position;
   Timer? nowPlayingTimer;
   bool showNowPlaying = true;
   bool isDisposing = false;
   bool isStopping = false;
-  int selectedPlayerMenu = 1;
   Future<void> playerOperations = Future.value();
 
   MediaItem get current => playlist[position];
@@ -1950,7 +2049,15 @@ class _PlayerPageState extends State<PlayerPage> {
         title: 'StreamVista',
       ),
     );
-    controller = VideoController(player);
+    controller = VideoController(
+      player,
+      configuration: Platform.isLinux
+          ? const VideoControllerConfiguration(
+              hwdec: 'auto-copy',
+              enableHardwareAcceleration: false,
+            )
+          : const VideoControllerConfiguration(),
+    );
     channelFocus.onKeyEvent = _onKey;
     _openCurrent();
     WidgetsBinding.instance
@@ -1970,7 +2077,25 @@ class _PlayerPageState extends State<PlayerPage> {
       _changeChannel(-1);
       return KeyEventResult.handled;
     }
+    if (canSeek && event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _skip(const Duration(seconds: 10));
+      return KeyEventResult.handled;
+    }
+    if (canSeek && event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _skip(const Duration(seconds: -10));
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
+  }
+
+  void _skip(Duration offset) {
+    if (!canSeek) return;
+    _showNowPlayingForTenSeconds();
+    final duration = player.state.duration;
+    var target = player.state.position + offset;
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration > Duration.zero && target > duration) target = duration;
+    unawaited(player.seek(target));
   }
 
   void _openCurrent() {
@@ -2052,6 +2177,12 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  void _toggleFullscreen() {
+    _showNowPlayingForTenSeconds();
+    final videoState = videoKey.currentState;
+    if (videoState != null) unawaited(videoState.toggleFullscreen());
+  }
+
   void _changeChannel(int offset) {
     if (playlist.length < 2) return;
     setState(() => position = (position + offset) % playlist.length);
@@ -2062,11 +2193,6 @@ class _PlayerPageState extends State<PlayerPage> {
     if (index == position) return;
     setState(() => position = index);
     _openCurrent();
-  }
-
-  void _selectPlayerMenu(int index) {
-    setState(() => selectedPlayerMenu = index);
-    _showNowPlayingForTenSeconds();
   }
 
   void _stopPlayback() {
@@ -2124,9 +2250,9 @@ class _PlayerPageState extends State<PlayerPage> {
                       aspectRatio: 16 / 9,
                       child: MaterialVideoControlsTheme(
                         normal: MaterialVideoControlsThemeData(
-                          // Live streams have no reliable duration; movies and
-                          // episodes use the native, draggable seek bar.
-                          displaySeekBar: canSeek,
+                          // The overlay below draws its own time bar for
+                          // movies and episodes, so the built-in one is off.
+                          displaySeekBar: false,
                           visibleOnMount: true,
                           controlsHoverDuration: Duration(seconds: 10),
                           controlsTransitionDuration:
@@ -2135,6 +2261,38 @@ class _PlayerPageState extends State<PlayerPage> {
                         ),
                         fullscreen: MaterialVideoControlsThemeData(
                           displaySeekBar: canSeek,
+                          seekOnDoubleTap: canSeek,
+                          primaryButtonBar: canSeek
+                              ? [
+                                  const Spacer(flex: 2),
+                                  MaterialCustomButton(
+                                    icon: const Icon(Icons.replay_10_rounded),
+                                    iconSize: 40,
+                                    onPressed: () => _skip(
+                                        const Duration(seconds: -10)),
+                                  ),
+                                  const Spacer(),
+                                  const MaterialPlayOrPauseButton(
+                                      iconSize: 56),
+                                  const Spacer(),
+                                  MaterialCustomButton(
+                                    icon: const Icon(Icons.forward_10_rounded),
+                                    iconSize: 40,
+                                    onPressed: () =>
+                                        _skip(const Duration(seconds: 10)),
+                                  ),
+                                  const Spacer(flex: 2),
+                                ]
+                              : const [
+                                  Spacer(flex: 2),
+                                  MaterialPlayOrPauseButton(iconSize: 56),
+                                  Spacer(flex: 2),
+                                ],
+                          bottomButtonBar: [
+                            if (canSeek) const MaterialPositionIndicator(),
+                            const Spacer(),
+                            const MaterialFullscreenButton(),
+                          ],
                           visibleOnMount: true,
                           controlsHoverDuration: Duration(seconds: 10),
                           controlsTransitionDuration:
@@ -2142,6 +2300,7 @@ class _PlayerPageState extends State<PlayerPage> {
                           volumeGesture: true,
                         ),
                         child: Video(
+                          key: videoKey,
                           controller: controller,
                           controls: MaterialVideoControls,
                           focusNode: channelFocus,
@@ -2150,58 +2309,36 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                   ),
                   Positioned(
-                    top: 12,
-                    left: 16,
-                    right: 16,
-                    child: AnimatedOpacity(
-                        opacity: showNowPlaying ? 1 : 0,
-                        duration: const Duration(milliseconds: 250),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            child: Row(children: [
-                              if (current.kind == MediaKind.live)
-                                const _LivePill()
-                              else
-                                const _OnDemandPill(),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                  child: Text(current.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800))),
-                              IconButton(
-                                  tooltip: 'Detener y cerrar',
-                                  onPressed:
-                                      isStopping ? null : _stopPlayback,
-                                  icon: const Icon(Icons.stop_rounded,
-                                      size: 20)),
-                              IconButton(
-                                  onPressed: () => Navigator.maybePop(context),
-                                  icon: const Icon(Icons.arrow_back_rounded,
-                                      size: 20)),
-                            ]),
-                          ),
-                        ),
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: _LivePlayerHeader(
+                        item: current,
+                        visible: showNowPlaying,
+                        isLive: current.kind == MediaKind.live,
+                        onBack: () => Navigator.maybePop(context),
+                      ),
                     ),
-                  ),
                   Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: _PlayerBottomMenu(
-                      visible: showNowPlaying,
-                      selectedIndex: selectedPlayerMenu,
-                      onSelected: _selectPlayerMenu,
-                      onInteraction: _showNowPlayingForTenSeconds,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: _LivePlayerOverlay(
+                        item: current,
+                        player: player,
+                        visible: showNowPlaying,
+                        isLive: current.kind == MediaKind.live,
+                        canChangeChannel: playlist.length > 1,
+                        onRewind: () =>
+                            _skip(const Duration(seconds: -10)),
+                        onForward: () => _skip(const Duration(seconds: 10)),
+                        onPrevious: () => _changeChannel(-1),
+                        onNext: () => _changeChannel(1),
+                        onVolume: _showVolumeControl,
+                        onFullscreen: _toggleFullscreen,
+                        onInteraction: _showNowPlayingForTenSeconds,
+                      ),
                     ),
-                  ),
                 ]),
                 ),
               ),
@@ -2374,6 +2511,317 @@ class _PlayerMenuButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LivePlayerOverlay extends StatelessWidget {
+  const _LivePlayerOverlay({
+    required this.item,
+    required this.player,
+    required this.visible,
+    required this.isLive,
+    required this.canChangeChannel,
+    required this.onRewind,
+    required this.onForward,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onVolume,
+    required this.onFullscreen,
+    required this.onInteraction,
+  });
+
+  final MediaItem item;
+  final bool visible;
+  final bool isLive;
+  final Player player;
+  final bool canChangeChannel;
+  final VoidCallback onRewind, onForward;
+  final VoidCallback onPrevious, onNext, onVolume, onFullscreen;
+  final VoidCallback onInteraction;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+        onKeyEvent: (_, __) {
+          onInteraction();
+          return KeyEventResult.ignored;
+        },
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedSlide(
+          offset: visible ? Offset.zero : const Offset(0, .22),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          child: AnimatedOpacity(
+            opacity: visible ? 1 : 0,
+            duration: const Duration(milliseconds: 280),
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [Color(0xD9000000), Color(0x99000000), Colors.transparent],
+                  stops: [0, .72, 1],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 42, 28, 18),
+                  child: LayoutBuilder(builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 560;
+                    return Column(mainAxisSize: MainAxisSize.min, children: [
+                      Row(children: [
+                        if (item.logo?.isNotEmpty == true)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: Image.network(item.logo!, width: 38, height: 38, fit: BoxFit.cover),
+                          )
+                        else
+                          const Icon(Icons.live_tv_rounded, size: 34),
+                        const SizedBox(width: 10),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(isLive ? 'EN DIRECTO' : 'REPRODUCIENDO', style: TextStyle(color: isLive ? const Color(0xFFFF4545) : const Color(0xFF67D7FF), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                          Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 15 : 18, fontWeight: FontWeight.w800)),
+                          Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFD0D0D0), fontSize: 12)),
+                        ])),
+                        _LiveControlButton(tooltip: 'Volumen', icon: Icons.volume_up_outlined, onPressed: onVolume),
+                        _LiveControlButton(tooltip: 'Pantalla completa', icon: Icons.fullscreen_rounded, onPressed: onFullscreen),
+                      ]),
+                      const SizedBox(height: 18),
+                      if (isLive)
+                        const Divider(color: Colors.white30, height: 1)
+                      else
+                        _VodTimeBar(player: player, onInteraction: onInteraction),
+                      const SizedBox(height: 14),
+                      if (isLive)
+                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          _LiveControlButton(tooltip: 'Canal anterior', icon: Icons.skip_previous_rounded, label: compact ? null : 'Anterior', onPressed: canChangeChannel ? onPrevious : null),
+                          const SizedBox(width: 24),
+                          _LiveControlButton(tooltip: 'Canal siguiente', icon: Icons.skip_next_rounded, label: compact ? null : 'Siguiente', onPressed: canChangeChannel ? onNext : null),
+                        ])
+                      else
+                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          if (canChangeChannel) ...[
+                            _LiveControlButton(tooltip: 'Anterior', icon: Icons.skip_previous_rounded, onPressed: onPrevious),
+                            SizedBox(width: compact ? 8 : 20),
+                          ],
+                          _LiveControlButton(tooltip: 'Retroceder 10 segundos', icon: Icons.replay_10_rounded, label: compact ? null : '-10 s', onPressed: onRewind),
+                          SizedBox(width: compact ? 8 : 20),
+                          StreamBuilder<bool>(
+                            stream: player.stream.playing,
+                            initialData: player.state.playing,
+                            builder: (_, playing) => _LiveControlButton(
+                              tooltip: playing.data == true ? 'Pausa' : 'Reproducir',
+                              icon: playing.data == true ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                              onPressed: () => unawaited(player.playOrPause()),
+                            ),
+                          ),
+                          SizedBox(width: compact ? 8 : 20),
+                          _LiveControlButton(tooltip: 'Adelantar 10 segundos', icon: Icons.forward_10_rounded, label: compact ? null : '+10 s', onPressed: onForward),
+                          if (canChangeChannel) ...[
+                            SizedBox(width: compact ? 8 : 20),
+                            _LiveControlButton(tooltip: 'Siguiente', icon: Icons.skip_next_rounded, onPressed: onNext),
+                          ],
+                        ]),
+                    ]);
+                  }),
+                ),
+              ),
+            ),
+          ),
+          ),
+        ),
+      );
+}
+
+/// Time bar for movies and episodes: elapsed time, a draggable slider and the
+/// total duration. Live streams don't use it because they have no end.
+class _VodTimeBar extends StatefulWidget {
+  const _VodTimeBar({required this.player, required this.onInteraction});
+  final Player player;
+  final VoidCallback onInteraction;
+
+  @override
+  State<_VodTimeBar> createState() => _VodTimeBarState();
+}
+
+class _VodTimeBarState extends State<_VodTimeBar> {
+  // Slider value while the user drags, so the thumb doesn't jump back to the
+  // playback position until the seek is released.
+  double? dragMs;
+
+  static String _format(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return h > 0 ? '$h:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<Duration>(
+        stream: widget.player.stream.duration,
+        initialData: widget.player.state.duration,
+        builder: (context, durationSnap) => StreamBuilder<Duration>(
+          stream: widget.player.stream.position,
+          initialData: widget.player.state.position,
+          builder: (context, positionSnap) {
+            final duration = durationSnap.data ?? Duration.zero;
+            final maxMs = duration.inMilliseconds.toDouble();
+            final positionMs = (positionSnap.data ?? Duration.zero)
+                .inMilliseconds
+                .toDouble()
+                .clamp(0.0, maxMs > 0 ? maxMs : 0.0);
+            final value = (dragMs ?? positionMs).clamp(0.0, maxMs > 0 ? maxMs : 0.0);
+            const timeStyle = TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              fontFeatures: [FontFeature.tabularFigures()],
+            );
+            return Row(children: [
+              Text(_format(Duration(milliseconds: value.round())), style: timeStyle),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    activeTrackColor: _accent,
+                    inactiveTrackColor: Colors.white24,
+                    thumbColor: Colors.white,
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                  ),
+                  child: Slider(
+                    value: value,
+                    max: maxMs > 0 ? maxMs : 1,
+                    onChangeStart: maxMs > 0
+                        ? (v) {
+                            widget.onInteraction();
+                            setState(() => dragMs = v);
+                          }
+                        : null,
+                    onChanged: maxMs > 0
+                        ? (v) {
+                            widget.onInteraction();
+                            setState(() => dragMs = v);
+                          }
+                        : null,
+                    onChangeEnd: maxMs > 0
+                        ? (v) {
+                            setState(() => dragMs = null);
+                            unawaited(widget.player
+                                .seek(Duration(milliseconds: v.round())));
+                          }
+                        : null,
+                  ),
+                ),
+              ),
+              Text(maxMs > 0 ? _format(duration) : '--:--', style: timeStyle),
+            ]);
+          },
+        ),
+      );
+}
+
+class _LivePlayerHeader extends StatelessWidget {
+  const _LivePlayerHeader({
+    required this.item,
+    required this.visible,
+    required this.isLive,
+    required this.onBack,
+  });
+
+  final MediaItem item;
+  final bool visible;
+  final bool isLive;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: const Duration(milliseconds: 250),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xCC000000), Colors.transparent],
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 16, 22, 42),
+                child: Row(children: [
+                  _LiveControlButton(
+                    tooltip: 'Volver',
+                    icon: Icons.arrow_back_rounded,
+                    onPressed: onBack,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 24, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 4),
+                        Row(children: [
+                          const Icon(Icons.circle,
+                              size: 11, color: Color(0xFFFF504D)),
+                          const SizedBox(width: 6),
+                          Text(isLive ? 'EN DIRECTO' : 'REPRODUCIENDO',
+                              style: TextStyle(
+                                  color: isLive
+                                      ? const Color(0xFFFF5B55)
+                                      : const Color(0xFF67D7FF),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(item.category,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 15)),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _LiveControlButton extends StatelessWidget {
+  const _LiveControlButton({required this.tooltip, required this.icon, required this.onPressed, this.label});
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+        message: tooltip,
+        child: TextButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 27),
+          label: label == null ? const SizedBox.shrink() : Text(label!),
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.white,
+            disabledForegroundColor: Colors.white38,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            backgroundColor: const Color(0x59000000),
+            shape: const StadiumBorder(),
+          ),
+        ),
+      );
 }
 
 class _ChannelSidebar extends StatefulWidget {

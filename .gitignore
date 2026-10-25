@@ -53,3 +53,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local-only: nested clone of the download page repo, build error logs
+/github-release/
+*.err

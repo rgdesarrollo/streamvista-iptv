@@ -54,7 +54,7 @@
       <section id="pair" class="pair-section">
         <div class="pair-copy"><p class="section-kicker">ÁREA PRIVADA</p><h2>Regístrate para gestionar tus dispositivos.</h2><p>El acceso a la configuración no es público. Crea una cuenta o inicia sesión para acceder a las opciones de tu dispositivo y tus fuentes autorizadas.</p><div class="security-note"><span>⌁</span><p><b>Diseñado para privacidad</b><br />No solicitamos una dirección MAC. La configuración expira en 10 minutos y se borra al recibirla el dispositivo.</p></div></div>
         <div class="portal-shell">
-          <form id="login-form" class="portal-form">
+          <form id="login-form" class="portal-form hidden">
             <div class="form-heading"><span class="lock">⌁</span><div><small>STREAMVISTA</small><h3>Inicia sesión</h3></div></div>
             <label>Correo electrónico<input id="email" type="email" autocomplete="email" placeholder="nombre@empresa.com" required /></label>
             <label>Contraseña<input id="password" type="password" autocomplete="current-password" placeholder="••••••••" required /></label>
@@ -66,7 +66,7 @@
             <label>Contraseña<input id="register-password" type="password" autocomplete="new-password" minlength="6" placeholder="Mínimo 6 caracteres" required /></label>
             <button class="primary-button">Crear cuenta <span>→</span></button><button id="show-login" type="button" class="outline-button">Ya tengo una cuenta</button><p id="register-status" role="status"></p>
           </form>
-          <form id="provision-form" class="portal-form hidden">
+          <form id="provision-form" class="portal-form">
             <div class="form-heading"><span class="lock">✓</span><div><small>DISPOSITIVO EMPAREJADO</small><h3>Enviar configuración</h3></div></div>
             <div class="field-row"><label>ID de dispositivo<input id="device-id" required placeholder="SV-…" /></label><label>PIN<input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required placeholder="123456" /></label></div>
             <label>Tipo de fuente<select id="source-type"><option value="xtream">Xtream Codes</option><option value="m3u">M3U / M3U8</option></select></label>

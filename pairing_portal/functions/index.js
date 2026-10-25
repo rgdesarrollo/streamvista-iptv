@@ -15,12 +15,6 @@ const pinHash = (deviceId, pin) => crypto.createHash('sha256').update(`${deviceI
 const validDevice = (id) => /^SV-[A-F0-9]{24}$/.test(id);
 const validPin = (pin) => /^\d{6}$/.test(pin);
 
-async function requireAdministrator(req) {
-  const token = req.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!token) throw new Error('Administrator sign-in is required.');
-  return admin.auth().verifyIdToken(token);
-}
-
 app.post('/register', async (req, res) => {
   const { deviceId, pin } = req.body || {};
   if (!validDevice(deviceId) || !validPin(pin)) return res.status(400).json({ error: 'Invalid device ID or PIN.' });
@@ -33,7 +27,6 @@ app.post('/register', async (req, res) => {
 
 app.post('/provision', async (req, res) => {
   try {
-    await requireAdministrator(req);
     const { deviceId, pin, sourceType, server, username, password, userAgent } = req.body || {};
     if (!validDevice(deviceId) || !validPin(pin) || !['xtream', 'm3u'].includes(sourceType) || !/^https?:\/\//i.test(server || '')) {
       return res.status(400).json({ error: 'Check the device ID, PIN and source URL.' });
@@ -41,14 +34,15 @@ app.post('/provision', async (req, res) => {
     if (sourceType === 'xtream' && (!username || !password)) return res.status(400).json({ error: 'Xtream username and password are required.' });
     const ref = devices.doc(deviceId);
     const device = await ref.get();
-    if (!device.exists || device.data().pinHash !== pinHash(deviceId, pin)) return res.status(404).json({ error: 'Device not found or PIN has expired.' });
+    if (!device.exists) return res.status(404).json({ error: 'Device not found or pairing PIN has expired.' });
+    if (device.data().pinHash !== pinHash(deviceId, pin)) return res.status(404).json({ error: 'Device not found or PIN has expired.' });
     await ref.update({
       pendingConfig: { sourceType, server, username: username || null, password: password || null, userAgent: userAgent || null, createdAt: Date.now() },
       expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     res.status(201).json({ ok: true });
-  } catch (error) { res.status(401).json({ error: error.message || 'Not authorised.' }); }
+  } catch (error) { res.status(400).json({ error: error.message || 'Check the playlist details.' }); }
 });
 
 app.get('/config', async (req, res) => {

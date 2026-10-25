@@ -30,6 +30,7 @@
 | Platform | Status | Distribution |
 | --- | --- | --- |
 | Windows 10/11 | Supported | Installer or unpacked release folder |
+| Linux (Debian/Ubuntu) | Supported | `.deb` package |
 | Android phone/tablet | Supported | Signed APK or Play Store App Bundle |
 | Android TV | Supported | Signed ARM64 APK or Play Store App Bundle |
 | macOS | Project scaffold present | Build on a Mac with Xcode |
@@ -58,6 +59,7 @@ Windows installers are not code-signed in this repository, so SmartScreen may re
 - Flutter stable SDK
 - Windows: Visual Studio with **Desktop development with C++**
 - Android: Android Studio, Android SDK, and a device or emulator
+- Linux: `sudo apt install clang cmake ninja-build pkg-config libgtk-3-dev libmpv-dev libsecret-1-dev liblzma-dev`
 
 ```bash
 flutter pub get
@@ -81,7 +83,12 @@ flutter build appbundle --release --obfuscate --split-debug-info=build/symbols/a
 
 # Direct-install Android APKs
 flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/symbols/android
+
+# Linux .deb package (output in dist/)
+./packaging/linux/build_deb.sh
 ```
+
+Install the Linux package with `sudo apt install ./dist/streamvista-iptv_<version>_amd64.deb`.
 
 Before Android release builds, configure your own signing key in `android/key.properties`. The template is intentionally excluded from version control; never commit a keystore or its passwords.
 
