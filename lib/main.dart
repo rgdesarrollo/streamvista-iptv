@@ -12,9 +12,18 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_windows/shared_preferences_windows.dart';
 
+class _PortalHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (cert, host, port) => true;
+  }
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) SharedPreferencesWindows.registerWith();
+  HttpOverrides.global = _PortalHttpOverrides();
   PaintingBinding.instance.imageCache.maximumSize = 160;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 60 << 20;
   MediaKit.ensureInitialized();
