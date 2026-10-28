@@ -221,8 +221,19 @@ class MediaItem {
 enum MediaKind { live, movie, series }
 
 const _vodExtensions = {
-  'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'webm', 'mpg', 'mpeg',
-  '3gp', 'divx', 'ogv',
+  'mp4',
+  'mkv',
+  'avi',
+  'mov',
+  'wmv',
+  'flv',
+  'm4v',
+  'webm',
+  'mpg',
+  'mpeg',
+  '3gp',
+  'divx',
+  'ogv',
 };
 
 String _normalize(String text) {
@@ -277,13 +288,33 @@ MediaKind classifyM3uEntry({
   final g = _normalize(group);
   final n = _normalize(title);
   const seriesWords = [
-    'series', 'serie', 'tv shows', 'shows', 'novelas', 'telenovelas',
-    'temporada', 'temporadas', 'season', 'seasons', 'doramas', 'anime',
-    'docuseries', 'miniseries',
+    'series',
+    'serie',
+    'tv shows',
+    'shows',
+    'novelas',
+    'telenovelas',
+    'temporada',
+    'temporadas',
+    'season',
+    'seasons',
+    'doramas',
+    'anime',
+    'docuseries',
+    'miniseries',
   ];
   const movieWords = [
-    'movies', 'movie', 'films', 'film', 'peliculas', 'pelicula', 'cine',
-    'cinema', 'vod', 'filmes', 'estrenos',
+    'movies',
+    'movie',
+    'films',
+    'film',
+    'peliculas',
+    'pelicula',
+    'cine',
+    'cinema',
+    'vod',
+    'filmes',
+    'estrenos',
   ];
   const liveWords = ['canal', 'canales', 'channel', 'channels', '24/7', 'live'];
 
@@ -1454,11 +1485,10 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
   void _preview(MediaItem item) {
     if (previewItem == item) return;
     setState(() => previewItem = item);
-    previewOperations =
-        previewOperations.catchError((_) {}).then((_) async {
+    previewOperations = previewOperations.catchError((_) {}).then((_) async {
       if (isDisposing || previewItem != item) return;
-      await previewPlayer.open(
-          Media(item.streamUrl, httpHeaders: item.headers));
+      await previewPlayer
+          .open(Media(item.streamUrl, httpHeaders: item.headers));
     });
   }
 
@@ -1666,8 +1696,8 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                           borderRadius: BorderRadius.circular(6),
                           child: InkWell(
                             onTap: () => _select(item, index, shown),
-                            onDoubleTap: () => _open(item, index, shown,
-                                fullscreen: true),
+                            onDoubleTap: () =>
+                                _open(item, index, shown, fullscreen: true),
                             borderRadius: BorderRadius.circular(6),
                             child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1715,8 +1745,8 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => _select(current, selected, shown),
-                      onDoubleTap: () => _open(current, selected, shown,
-                          fullscreen: true),
+                      onDoubleTap: () =>
+                          _open(current, selected, shown, fullscreen: true),
                       child: Stack(fit: StackFit.expand, children: [
                         _PreviewArtwork(item: current),
                         if (previewItem == current)
@@ -1728,15 +1758,13 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                               fill: Colors.black,
                             ),
                           ),
-                        const Positioned(
-                            left: 12, top: 12, child: _LivePill()),
+                        const Positioned(left: 12, top: 12, child: _LivePill()),
                         Positioned(
                             right: 4,
                             bottom: 4,
                             child: IconButton(
                                 tooltip: 'Full screen',
-                                onPressed: () => _open(
-                                    current, selected, shown,
+                                onPressed: () => _open(current, selected, shown,
                                     fullscreen: true),
                                 icon: const Icon(Icons.fullscreen_rounded,
                                     color: Colors.white70))),
@@ -2293,9 +2321,8 @@ class _PlayerPageState extends State<PlayerPage> {
   void _setFullscreen(bool value) {
     if (isFullscreen == value) return;
     isFullscreen = value;
-    unawaited(value
-        ? defaultEnterNativeFullscreen()
-        : defaultExitNativeFullscreen());
+    unawaited(
+        value ? defaultEnterNativeFullscreen() : defaultExitNativeFullscreen());
   }
 
   void _toggleFullscreen() {
@@ -2366,70 +2393,71 @@ class _PlayerPageState extends State<PlayerPage> {
                   behavior: HitTestBehavior.translucent,
                   onPointerDown: (_) => _showNowPlayingForTenSeconds(),
                   child: Stack(children: [
-                  Center(
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: MaterialVideoControlsTheme(
-                        normal: MaterialVideoControlsThemeData(
-                          // The overlay below draws its own time bar for
-                          // movies and episodes, so the built-in one is off.
-                          displaySeekBar: false,
-                          visibleOnMount: true,
-                          controlsHoverDuration: Duration(seconds: 10),
-                          controlsTransitionDuration:
-                              Duration(milliseconds: 180),
-                          volumeGesture: true,
-                        ),
-                        fullscreen: MaterialVideoControlsThemeData(
-                          displaySeekBar: canSeek,
-                          seekOnDoubleTap: canSeek,
-                          primaryButtonBar: canSeek
-                              ? [
-                                  const Spacer(flex: 2),
-                                  MaterialCustomButton(
-                                    icon: const Icon(Icons.replay_10_rounded),
-                                    iconSize: 40,
-                                    onPressed: () => _skip(
-                                        const Duration(seconds: -10)),
-                                  ),
-                                  const Spacer(),
-                                  const MaterialPlayOrPauseButton(
-                                      iconSize: 56),
-                                  const Spacer(),
-                                  MaterialCustomButton(
-                                    icon: const Icon(Icons.forward_10_rounded),
-                                    iconSize: 40,
-                                    onPressed: () =>
-                                        _skip(const Duration(seconds: 10)),
-                                  ),
-                                  const Spacer(flex: 2),
-                                ]
-                              : const [
-                                  Spacer(flex: 2),
-                                  MaterialPlayOrPauseButton(iconSize: 56),
-                                  Spacer(flex: 2),
-                                ],
-                          bottomButtonBar: [
-                            if (canSeek) const MaterialPositionIndicator(),
-                            const Spacer(),
-                            const MaterialFullscreenButton(),
-                          ],
-                          visibleOnMount: true,
-                          controlsHoverDuration: Duration(seconds: 10),
-                          controlsTransitionDuration:
-                              Duration(milliseconds: 180),
-                          volumeGesture: true,
-                        ),
-                        child: Video(
-                          key: videoKey,
-                          controller: controller,
-                          controls: MaterialVideoControls,
-                          focusNode: channelFocus,
+                    Center(
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: MaterialVideoControlsTheme(
+                          normal: MaterialVideoControlsThemeData(
+                            // The overlay below draws its own time bar for
+                            // movies and episodes, so the built-in one is off.
+                            displaySeekBar: false,
+                            visibleOnMount: true,
+                            controlsHoverDuration: Duration(seconds: 10),
+                            controlsTransitionDuration:
+                                Duration(milliseconds: 180),
+                            volumeGesture: true,
+                          ),
+                          fullscreen: MaterialVideoControlsThemeData(
+                            displaySeekBar: canSeek,
+                            seekOnDoubleTap: canSeek,
+                            primaryButtonBar: canSeek
+                                ? [
+                                    const Spacer(flex: 2),
+                                    MaterialCustomButton(
+                                      icon: const Icon(Icons.replay_10_rounded),
+                                      iconSize: 40,
+                                      onPressed: () =>
+                                          _skip(const Duration(seconds: -10)),
+                                    ),
+                                    const Spacer(),
+                                    const MaterialPlayOrPauseButton(
+                                        iconSize: 56),
+                                    const Spacer(),
+                                    MaterialCustomButton(
+                                      icon:
+                                          const Icon(Icons.forward_10_rounded),
+                                      iconSize: 40,
+                                      onPressed: () =>
+                                          _skip(const Duration(seconds: 10)),
+                                    ),
+                                    const Spacer(flex: 2),
+                                  ]
+                                : const [
+                                    Spacer(flex: 2),
+                                    MaterialPlayOrPauseButton(iconSize: 56),
+                                    Spacer(flex: 2),
+                                  ],
+                            bottomButtonBar: [
+                              if (canSeek) const MaterialPositionIndicator(),
+                              const Spacer(),
+                              const MaterialFullscreenButton(),
+                            ],
+                            visibleOnMount: true,
+                            controlsHoverDuration: Duration(seconds: 10),
+                            controlsTransitionDuration:
+                                Duration(milliseconds: 180),
+                            volumeGesture: true,
+                          ),
+                          child: Video(
+                            key: videoKey,
+                            controller: controller,
+                            controls: MaterialVideoControls,
+                            focusNode: channelFocus,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
+                    Positioned(
                       top: 0,
                       left: 0,
                       right: 0,
@@ -2440,7 +2468,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         onBack: () => Navigator.maybePop(context),
                       ),
                     ),
-                  Positioned(
+                    Positioned(
                       left: 0,
                       right: 0,
                       bottom: 0,
@@ -2450,8 +2478,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         visible: showNowPlaying,
                         isLive: current.kind == MediaKind.live,
                         canChangeChannel: playlist.length > 1,
-                        onRewind: () =>
-                            _skip(const Duration(seconds: -10)),
+                        onRewind: () => _skip(const Duration(seconds: -10)),
                         onForward: () => _skip(const Duration(seconds: 10)),
                         onPrevious: () => _changeChannel(-1),
                         onNext: () => _changeChannel(1),
@@ -2460,7 +2487,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         onInteraction: _showNowPlayingForTenSeconds,
                       ),
                     ),
-                ]),
+                  ]),
                 ),
               ),
             ),
@@ -2484,7 +2511,8 @@ class _PlayerBottomMenu extends StatelessWidget {
   final VoidCallback onInteraction;
 
   static const _items = <_PlayerMenuItem>[
-    _PlayerMenuItem(Icons.favorite_border_rounded, 'Favorita', Color(0xFFFFD900)),
+    _PlayerMenuItem(
+        Icons.favorite_border_rounded, 'Favorita', Color(0xFFFFD900)),
     _PlayerMenuItem(Icons.movie_filter_outlined, 'Cine', Color(0xFFFF3B30)),
     _PlayerMenuItem(Icons.video_library_outlined, 'Serie', Color(0xFF35D05E)),
     _PlayerMenuItem(Icons.search_rounded, 'Buscar'),
@@ -2501,48 +2529,48 @@ class _PlayerBottomMenu extends StatelessWidget {
         child: IgnorePointer(
           ignoring: !visible,
           child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, .28),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOut,
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: DecoratedBox(
-                  decoration: const BoxDecoration(
-                    color: Color.fromRGBO(0, 0, 0, .78),
-                    border: Border(top: BorderSide(color: Colors.white12)),
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: LayoutBuilder(builder: (context, constraints) {
-                      final compact = constraints.maxWidth < 620;
-                      return SizedBox(
-                        height: compact ? 88 : 102,
-                        child: Row(
-                          children: List.generate(_items.length, (index) {
-                            final item = _items[index];
-                            return Expanded(
-                              child: _PlayerMenuButton(
-                                item: item,
-                                selected: index == selectedIndex,
-                                compact: compact,
-                                onPressed: () => onSelected(index),
-                                onFocus: onInteraction,
-                              ),
-                            );
-                          }),
-                        ),
-                      );
-                    }),
+            offset: visible ? Offset.zero : const Offset(0, .28),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: visible ? 1 : 0,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOut,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: Color.fromRGBO(0, 0, 0, .78),
+                      border: Border(top: BorderSide(color: Colors.white12)),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 620;
+                        return SizedBox(
+                          height: compact ? 88 : 102,
+                          child: Row(
+                            children: List.generate(_items.length, (index) {
+                              final item = _items[index];
+                              return Expanded(
+                                child: _PlayerMenuButton(
+                                  item: item,
+                                  selected: index == selectedIndex,
+                                  compact: compact,
+                                  onPressed: () => onSelected(index),
+                                  onFocus: onInteraction,
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      }),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           ),
         ),
       );
@@ -2574,7 +2602,8 @@ class _PlayerMenuButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconColor = selected ? Colors.white : const Color(0xFFD3D3D3);
     final labelColor = selected ? Colors.white : const Color(0xFFD0D0D0);
-    final iconSize = selected ? (compact ? 31.0 : 35.0) : (compact ? 25.0 : 28.0);
+    final iconSize =
+        selected ? (compact ? 31.0 : 35.0) : (compact ? 25.0 : 28.0);
     return Semantics(
       button: true,
       selected: selected,
@@ -2597,7 +2626,9 @@ class _PlayerMenuButton extends StatelessWidget {
             height: selected ? (compact ? 48 : 56) : (compact ? 38 : 44),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: selected ? const Color(0xFFBFC1BA).withValues(alpha: .72) : Colors.transparent,
+              color: selected
+                  ? const Color(0xFFBFC1BA).withValues(alpha: .72)
+                  : Colors.transparent,
               shape: BoxShape.circle,
             ),
             child: Icon(item.icon, color: iconColor, size: iconSize),
@@ -2668,87 +2699,152 @@ class _LivePlayerOverlay extends StatelessWidget {
         child: IgnorePointer(
           ignoring: !visible,
           child: AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, .22),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOutCubic,
-          child: AnimatedOpacity(
-            opacity: visible ? 1 : 0,
-            duration: const Duration(milliseconds: 280),
-            child: DecoratedBox(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [Color(0xD9000000), Color(0x99000000), Colors.transparent],
-                  stops: [0, .72, 1],
+            offset: visible ? Offset.zero : const Offset(0, .22),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
+            child: AnimatedOpacity(
+              opacity: visible ? 1 : 0,
+              duration: const Duration(milliseconds: 280),
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      Color(0xD9000000),
+                      Color(0x99000000),
+                      Colors.transparent
+                    ],
+                    stops: [0, .72, 1],
+                  ),
                 ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 42, 28, 18),
-                  child: LayoutBuilder(builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 560;
-                    return Column(mainAxisSize: MainAxisSize.min, children: [
-                      Row(children: [
-                        if (item.logo?.isNotEmpty == true)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: Image.network(item.logo!, width: 38, height: 38, fit: BoxFit.cover),
-                          )
-                        else
-                          const Icon(Icons.live_tv_rounded, size: 34),
-                        const SizedBox(width: 10),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(isLive ? 'EN DIRECTO' : 'REPRODUCIENDO', style: TextStyle(color: isLive ? const Color(0xFFFF4545) : const Color(0xFF67D7FF), fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
-                          Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 15 : 18, fontWeight: FontWeight.w800)),
-                          Text(item.category, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFD0D0D0), fontSize: 12)),
-                        ])),
-                        _LiveControlButton(tooltip: 'Volumen', icon: Icons.volume_up_outlined, onPressed: onVolume),
-                        _LiveControlButton(tooltip: 'Pantalla completa', icon: Icons.fullscreen_rounded, onPressed: onFullscreen),
-                      ]),
-                      const SizedBox(height: 18),
-                      if (isLive)
-                        const Divider(color: Colors.white30, height: 1)
-                      else
-                        _VodTimeBar(player: player, onInteraction: onInteraction),
-                      const SizedBox(height: 14),
-                      if (isLive)
-                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          _LiveControlButton(tooltip: 'Canal anterior', icon: Icons.skip_previous_rounded, label: compact ? null : 'Anterior', onPressed: canChangeChannel ? onPrevious : null),
-                          const SizedBox(width: 24),
-                          _LiveControlButton(tooltip: 'Canal siguiente', icon: Icons.skip_next_rounded, label: compact ? null : 'Siguiente', onPressed: canChangeChannel ? onNext : null),
-                        ])
-                      else
-                        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                          if (canChangeChannel) ...[
-                            _LiveControlButton(tooltip: 'Anterior', icon: Icons.skip_previous_rounded, onPressed: onPrevious),
-                            SizedBox(width: compact ? 8 : 20),
-                          ],
-                          _LiveControlButton(tooltip: 'Retroceder 10 segundos', icon: Icons.replay_10_rounded, label: compact ? null : '-10 s', onPressed: onRewind),
-                          SizedBox(width: compact ? 8 : 20),
-                          StreamBuilder<bool>(
-                            stream: player.stream.playing,
-                            initialData: player.state.playing,
-                            builder: (_, playing) => _LiveControlButton(
-                              tooltip: playing.data == true ? 'Pausa' : 'Reproducir',
-                              icon: playing.data == true ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                              onPressed: () => unawaited(player.playOrPause()),
-                            ),
-                          ),
-                          SizedBox(width: compact ? 8 : 20),
-                          _LiveControlButton(tooltip: 'Adelantar 10 segundos', icon: Icons.forward_10_rounded, label: compact ? null : '+10 s', onPressed: onForward),
-                          if (canChangeChannel) ...[
-                            SizedBox(width: compact ? 8 : 20),
-                            _LiveControlButton(tooltip: 'Siguiente', icon: Icons.skip_next_rounded, onPressed: onNext),
-                          ],
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(28, 42, 28, 18),
+                    child: LayoutBuilder(builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 560;
+                      return Column(mainAxisSize: MainAxisSize.min, children: [
+                        Row(children: [
+                          if (item.logo?.isNotEmpty == true)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(5),
+                              child: Image.network(item.logo!,
+                                  width: 38, height: 38, fit: BoxFit.cover),
+                            )
+                          else
+                            const Icon(Icons.live_tv_rounded, size: 34),
+                          const SizedBox(width: 10),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(isLive ? 'EN DIRECTO' : 'REPRODUCIENDO',
+                                    style: TextStyle(
+                                        color: isLive
+                                            ? const Color(0xFFFF4545)
+                                            : const Color(0xFF67D7FF),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1)),
+                                Text(item.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        fontSize: compact ? 15 : 18,
+                                        fontWeight: FontWeight.w800)),
+                                Text(item.category,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        color: Color(0xFFD0D0D0),
+                                        fontSize: 12)),
+                              ])),
+                          _LiveControlButton(
+                              tooltip: 'Volumen',
+                              icon: Icons.volume_up_outlined,
+                              onPressed: onVolume),
+                          _LiveControlButton(
+                              tooltip: 'Pantalla completa',
+                              icon: Icons.fullscreen_rounded,
+                              onPressed: onFullscreen),
                         ]),
-                    ]);
-                  }),
+                        const SizedBox(height: 18),
+                        if (isLive)
+                          const Divider(color: Colors.white30, height: 1)
+                        else
+                          _VodTimeBar(
+                              player: player, onInteraction: onInteraction),
+                        const SizedBox(height: 14),
+                        if (isLive)
+                          Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _LiveControlButton(
+                                    tooltip: 'Canal anterior',
+                                    icon: Icons.skip_previous_rounded,
+                                    label: compact ? null : 'Anterior',
+                                    onPressed:
+                                        canChangeChannel ? onPrevious : null),
+                                const SizedBox(width: 24),
+                                _LiveControlButton(
+                                    tooltip: 'Canal siguiente',
+                                    icon: Icons.skip_next_rounded,
+                                    label: compact ? null : 'Siguiente',
+                                    onPressed:
+                                        canChangeChannel ? onNext : null),
+                              ])
+                        else
+                          Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (canChangeChannel) ...[
+                                  _LiveControlButton(
+                                      tooltip: 'Anterior',
+                                      icon: Icons.skip_previous_rounded,
+                                      onPressed: onPrevious),
+                                  SizedBox(width: compact ? 8 : 20),
+                                ],
+                                _LiveControlButton(
+                                    tooltip: 'Retroceder 10 segundos',
+                                    icon: Icons.replay_10_rounded,
+                                    label: compact ? null : '-10 s',
+                                    onPressed: onRewind),
+                                SizedBox(width: compact ? 8 : 20),
+                                StreamBuilder<bool>(
+                                  stream: player.stream.playing,
+                                  initialData: player.state.playing,
+                                  builder: (_, playing) => _LiveControlButton(
+                                    tooltip: playing.data == true
+                                        ? 'Pausa'
+                                        : 'Reproducir',
+                                    icon: playing.data == true
+                                        ? Icons.pause_rounded
+                                        : Icons.play_arrow_rounded,
+                                    onPressed: () =>
+                                        unawaited(player.playOrPause()),
+                                  ),
+                                ),
+                                SizedBox(width: compact ? 8 : 20),
+                                _LiveControlButton(
+                                    tooltip: 'Adelantar 10 segundos',
+                                    icon: Icons.forward_10_rounded,
+                                    label: compact ? null : '+10 s',
+                                    onPressed: onForward),
+                                if (canChangeChannel) ...[
+                                  SizedBox(width: compact ? 8 : 20),
+                                  _LiveControlButton(
+                                      tooltip: 'Siguiente',
+                                      icon: Icons.skip_next_rounded,
+                                      onPressed: onNext),
+                                ],
+                              ]),
+                      ]);
+                    }),
+                  ),
                 ),
               ),
             ),
-          ),
           ),
         ),
       );
@@ -2791,14 +2887,16 @@ class _VodTimeBarState extends State<_VodTimeBar> {
                 .inMilliseconds
                 .toDouble()
                 .clamp(0.0, maxMs > 0 ? maxMs : 0.0);
-            final value = (dragMs ?? positionMs).clamp(0.0, maxMs > 0 ? maxMs : 0.0);
+            final value =
+                (dragMs ?? positionMs).clamp(0.0, maxMs > 0 ? maxMs : 0.0);
             const timeStyle = TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               fontFeatures: [FontFeature.tabularFigures()],
             );
             return Row(children: [
-              Text(_format(Duration(milliseconds: value.round())), style: timeStyle),
+              Text(_format(Duration(milliseconds: value.round())),
+                  style: timeStyle),
               Expanded(
                 child: SliderTheme(
                   data: SliderTheme.of(context).copyWith(
@@ -2806,8 +2904,10 @@ class _VodTimeBarState extends State<_VodTimeBar> {
                     activeTrackColor: _accent,
                     inactiveTrackColor: Colors.white24,
                     thumbColor: Colors.white,
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 14),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 7),
                   ),
                   child: Slider(
                     value: value,
@@ -2921,7 +3021,11 @@ class _LivePlayerHeader extends StatelessWidget {
 }
 
 class _LiveControlButton extends StatelessWidget {
-  const _LiveControlButton({required this.tooltip, required this.icon, required this.onPressed, this.label});
+  const _LiveControlButton(
+      {required this.tooltip,
+      required this.icon,
+      required this.onPressed,
+      this.label});
   final String tooltip;
   final IconData icon;
   final VoidCallback? onPressed;
