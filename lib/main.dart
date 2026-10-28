@@ -1408,6 +1408,12 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
   String category = 'All';
   String query = '';
   int selected = 0;
+  late final Player previewPlayer;
+  late final VideoController previewController;
+  Future<void> previewOperations = Future.value();
+  MediaItem? previewItem;
+  bool isDisposing = false;
+  bool isOpening = false;
 
   List<MediaItem> get _shown => widget.items
       .where((item) =>
@@ -1415,15 +1421,87 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
           item.title.toLowerCase().contains(query.toLowerCase()))
       .toList();
 
-  void _open(MediaItem item, int index, List<MediaItem> items) =>
-      Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (_) => PlayerPage(
-                  item: item,
-                  playlist: items,
-                  position: index,
-                  settings: widget.settings)));
+  @override
+  void initState() {
+    super.initState();
+    previewPlayer = Player(
+      configuration: PlayerConfiguration(
+        bufferSize: widget.settings.bufferSizeFor(MediaKind.live),
+        title: 'StreamVista',
+      ),
+    );
+    previewController = VideoController(
+      previewPlayer,
+      configuration: Platform.isLinux
+          ? const VideoControllerConfiguration(
+              hwdec: 'auto-copy',
+              enableHardwareAcceleration: false,
+            )
+          : const VideoControllerConfiguration(),
+    );
+  }
+
+  @override
+  void dispose() {
+    isDisposing = true;
+    unawaited(previewOperations
+        .catchError((_) {})
+        .whenComplete(previewPlayer.dispose)
+        .catchError((_) {}));
+    super.dispose();
+  }
+
+  void _preview(MediaItem item) {
+    if (previewItem == item) return;
+    setState(() => previewItem = item);
+    previewOperations =
+        previewOperations.catchError((_) {}).then((_) async {
+      if (isDisposing || previewItem != item) return;
+      await previewPlayer.open(
+          Media(item.streamUrl, httpHeaders: item.headers));
+    });
+  }
+
+  Future<void> _stopPreview() {
+    previewItem = null;
+    previewOperations = previewOperations
+        .catchError((_) {})
+        .then((_) => isDisposing ? null : previewPlayer.stop());
+    return previewOperations.catchError((_) {});
+  }
+
+  void _select(MediaItem item, int index, List<MediaItem> items) {
+    if (selected == index && previewItem == item) {
+      _open(item, index, items, fullscreen: true);
+      return;
+    }
+    setState(() => selected = index);
+    _preview(item);
+  }
+
+  Future<void> _open(MediaItem item, int index, List<MediaItem> items,
+      {bool fullscreen = false}) async {
+    if (isOpening) return;
+    isOpening = true;
+    setState(() => selected = index);
+    await _stopPreview();
+    if (!mounted) return;
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => PlayerPage(
+                item: item,
+                playlist: items,
+                position: index,
+                fullscreen: fullscreen,
+                settings: widget.settings)));
+    isOpening = false;
+    if (!mounted) return;
+    final shown = _shown;
+    if (shown.isNotEmpty) {
+      _preview(shown[selected.clamp(0, shown.length - 1)]);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1587,8 +1665,9 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                           color: active ? _accent : const Color(0xFF191B52),
                           borderRadius: BorderRadius.circular(6),
                           child: InkWell(
-                            onTap: () => setState(() => selected = index),
-                            onDoubleTap: () => _open(item, index, shown),
+                            onTap: () => _select(item, index, shown),
+                            onDoubleTap: () => _open(item, index, shown,
+                                fullscreen: true),
                             borderRadius: BorderRadius.circular(6),
                             child: Padding(
                                 padding: const EdgeInsets.symmetric(
@@ -1633,15 +1712,36 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                 flex: 7,
                 child: ClipRRect(
                     borderRadius: BorderRadius.circular(5),
-                    child: Stack(fit: StackFit.expand, children: [
-                      _PreviewArtwork(item: current),
-                      const Positioned(left: 12, top: 12, child: _LivePill()),
-                      const Positioned(
-                          right: 12,
-                          bottom: 12,
-                          child: Icon(Icons.fullscreen_rounded,
-                              color: Colors.white70)),
-                    ]))),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _select(current, selected, shown),
+                      onDoubleTap: () => _open(current, selected, shown,
+                          fullscreen: true),
+                      child: Stack(fit: StackFit.expand, children: [
+                        _PreviewArtwork(item: current),
+                        if (previewItem == current)
+                          ColoredBox(
+                            color: Colors.black,
+                            child: Video(
+                              controller: previewController,
+                              controls: NoVideoControls,
+                              fill: Colors.black,
+                            ),
+                          ),
+                        const Positioned(
+                            left: 12, top: 12, child: _LivePill()),
+                        Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: IconButton(
+                                tooltip: 'Full screen',
+                                onPressed: () => _open(
+                                    current, selected, shown,
+                                    fullscreen: true),
+                                icon: const Icon(Icons.fullscreen_rounded,
+                                    color: Colors.white70))),
+                      ]),
+                    ))),
             const SizedBox(height: 13),
             Row(children: [
               _ChannelLogo(item: current, active: true, large: true),
@@ -1667,7 +1767,7 @@ class _LiveTvBrowserState extends State<_LiveTvBrowser> {
                 style: const TextStyle(fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
             const Text(
-                'Select a channel to preview it. Press play or double-click to start watching.',
+                'Select a channel to preview it here. Double-click (or select it again) to watch in full screen.',
                 style: TextStyle(fontSize: 12, color: Colors.white60)),
             const Spacer(),
             Row(children: [
@@ -2022,11 +2122,13 @@ class PlayerPage extends StatefulWidget {
     required this.settings,
     this.playlist = const [],
     this.position = 0,
+    this.fullscreen = false,
   });
   final MediaItem item;
   final AppSettings settings;
   final List<MediaItem> playlist;
   final int position;
+  final bool fullscreen;
   @override
   State<PlayerPage> createState() => _PlayerPageState();
 }
@@ -2042,6 +2144,7 @@ class _PlayerPageState extends State<PlayerPage> {
   bool showNowPlaying = true;
   bool isDisposing = false;
   bool isStopping = false;
+  bool isFullscreen = false;
   Future<void> playerOperations = Future.value();
 
   MediaItem get current => playlist[position];
@@ -2068,6 +2171,7 @@ class _PlayerPageState extends State<PlayerPage> {
           : const VideoControllerConfiguration(),
     );
     channelFocus.onKeyEvent = _onKey;
+    if (widget.fullscreen) _setFullscreen(true);
     _openCurrent();
     WidgetsBinding.instance
         .addPostFrameCallback((_) => channelFocus.requestFocus());
@@ -2186,10 +2290,17 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  void _setFullscreen(bool value) {
+    if (isFullscreen == value) return;
+    isFullscreen = value;
+    unawaited(value
+        ? defaultEnterNativeFullscreen()
+        : defaultExitNativeFullscreen());
+  }
+
   void _toggleFullscreen() {
     _showNowPlayingForTenSeconds();
-    final videoState = videoKey.currentState;
-    if (videoState != null) unawaited(videoState.toggleFullscreen());
+    setState(() => _setFullscreen(!isFullscreen));
   }
 
   void _changeChannel(int offset) {
@@ -2220,6 +2331,7 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     isDisposing = true;
+    _setFullscreen(false);
     nowPlayingTimer?.cancel();
     channelFocus.dispose();
     unawaited(playerOperations.whenComplete(player.dispose).catchError((_) {}));
