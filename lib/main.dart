@@ -7,6 +7,7 @@ import 'dart:ui' show FontFeature, ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -716,28 +717,30 @@ class PairDevicePage extends StatefulWidget {
 }
 
 class _PairDevicePageState extends State<PairDevicePage> {
-  final endpoint = TextEditingController();
+  static const pairingUrl =
+      'https://us-central1-steamvista-2efa2.cloudfunctions.net/pairing';
+  static const portalUrl =
+      'https://steamvista-player.rgdesarrollo.chatgpt.site/#/playlists';
+  final pairingClient = IOClient(HttpClient()..badCertificateCallback = null);
+  bool polling = false;
   final random = Random.secure();
   Timer? poller;
   String? deviceId;
   String? pin;
-  String status = 'Introduce la URL de tu portal de StreamVista.';
+  String status =
+      'Genera un código y añade tu lista desde la web de Steamvista.';
   bool loading = false;
 
   @override
   void dispose() {
     poller?.cancel();
-    endpoint.dispose();
+    pairingClient.close();
     super.dispose();
   }
 
   Future<void> begin() async {
-    final base = endpoint.text.trim().replaceFirst(RegExp(r'/$'), '');
-    final uri = Uri.tryParse(base);
-    if (uri == null || !uri.hasScheme || uri.scheme != 'https') {
-      setState(() => status = 'Introduce una URL HTTPS v\u00e1lida.');
-      return;
-    }
+    poller?.cancel();
+    const base = pairingUrl;
     final id =
         'SV-${List.generate(24, (_) => random.nextInt(16).toRadixString(16).toUpperCase()).join()}';
     final code = (100000 + random.nextInt(900000)).toString();
@@ -746,13 +749,14 @@ class _PairDevicePageState extends State<PairDevicePage> {
       status = 'Registrando dispositivo\u2026';
     });
     try {
-      final response = await http
+      final response = await pairingClient
           .post(Uri.parse('$base/register'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode({'deviceId': id, 'pin': code}))
           .timeout(const Duration(seconds: 15));
       if (response.statusCode != 204)
         throw Exception('El portal no acept\u00f3 el dispositivo.');
+      if (!mounted) return;
       setState(() {
         deviceId = id;
         pin = code;
@@ -772,12 +776,24 @@ class _PairDevicePageState extends State<PairDevicePage> {
   }
 
   Future<void> _poll(String base, String id, String code) async {
+    if (polling || !mounted) return;
+    polling = true;
     try {
-      final response = await http
+      final response = await pairingClient
           .get(Uri.parse('$base/config')
               .replace(queryParameters: {'deviceId': id, 'pin': code}))
           .timeout(const Duration(seconds: 15));
+      if (!mounted) return;
       if (response.statusCode == 204) return;
+      if (response.statusCode == 404) {
+        poller?.cancel();
+        setState(() {
+          deviceId = null;
+          pin = null;
+          status = 'El código ha caducado. Genera uno nuevo.';
+        });
+        return;
+      }
       if (response.statusCode != 200)
         throw Exception('El portal respondi\u00f3 ${response.statusCode}.');
       final data =
@@ -792,8 +808,9 @@ class _PairDevicePageState extends State<PairDevicePage> {
       poller?.cancel();
       if (mounted) Navigator.pop(context, config);
     } catch (error) {
-      if (mounted)
-        setState(() => status = 'Esperando configuraci\u00f3n: $error');
+      if (mounted) setState(() => status = 'Esperando configuración: $error');
+    } finally {
+      polling = false;
     }
   }
 
@@ -816,15 +833,19 @@ class _PairDevicePageState extends State<PairDevicePage> {
                         const Text(
                             'No uses una direcci\u00f3n MAC. StreamVista crea un ID privado que funciona en TV, tablet y m\u00f3vil.'),
                         const SizedBox(height: 20),
-                        TextField(
-                            controller: endpoint,
-                            enabled: deviceId == null,
-                            keyboardType: TextInputType.url,
-                            decoration: const InputDecoration(
-                                labelText:
-                                    'URL de la funci\u00f3n de emparejamiento',
-                                hintText:
-                                    'https://us-central1-tu-proyecto.cloudfunctions.net/pairing')),
+                        const SelectableText(portalUrl,
+                            textAlign: TextAlign.center),
+                        TextButton.icon(
+                            onPressed: () async {
+                              await Clipboard.setData(
+                                  const ClipboardData(text: portalUrl));
+                              if (context.mounted)
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Enlace copiado')));
+                            },
+                            icon: const Icon(Icons.copy),
+                            label: const Text('Copiar enlace de la web')),
                         const SizedBox(height: 14),
                         if (deviceId == null)
                           FilledButton(
@@ -833,6 +854,8 @@ class _PairDevicePageState extends State<PairDevicePage> {
                                   ? const CircularProgressIndicator()
                                   : const Text('Generar c\u00f3digo'))
                         else ...[
+                          const Text('ID del dispositivo',
+                              textAlign: TextAlign.center),
                           SelectableText(deviceId!,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
@@ -847,6 +870,14 @@ class _PairDevicePageState extends State<PairDevicePage> {
                         ],
                         const SizedBox(height: 16),
                         Text(status, textAlign: TextAlign.center),
+                        if (deviceId != null)
+                          TextButton(
+                              onPressed: loading ? null : begin,
+                              child: const Text('Generar otro código')),
+                        const SizedBox(height: 8),
+                        const Text(
+                            'El PIN caduca en 10 minutos. La licencia de 5 € de por vida y el pago con PayPal aún no están habilitados.',
+                            textAlign: TextAlign.center),
                       ]),
                 ))),
       );
@@ -1088,17 +1119,13 @@ class _BrandMark extends StatelessWidget {
   const _BrandMark({required this.size});
   final double size;
   @override
-  Widget build(BuildContext context) => Container(
-      height: size,
-      width: size,
-      decoration: BoxDecoration(
-          color: _accent,
-          borderRadius: BorderRadius.circular(size * .27),
-          boxShadow: [
-            BoxShadow(color: _accent.withValues(alpha: .5), blurRadius: 18)
-          ]),
-      child:
-          Icon(Icons.live_tv_rounded, size: size * .63, color: Colors.white));
+  Widget build(BuildContext context) => ClipRRect(
+      borderRadius: BorderRadius.circular(size * .18),
+      child: Image.asset(_logoAsset,
+          height: size,
+          width: size,
+          fit: BoxFit.contain,
+          semanticLabel: 'Logo de Steamvista'));
 }
 
 class _ClockLabel extends StatelessWidget {
