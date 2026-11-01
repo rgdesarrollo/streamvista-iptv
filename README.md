@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="144" alt="StreamVista IPTV logo">
+  <img src="logo.png" width="240" alt="StreamVista IPTV gold SV logo on charcoal">
 </p>
 
 <h1 align="center">StreamVista IPTV</h1>
@@ -9,9 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/StreamVista-IPTV-Setup-v1.0.2.exe"><strong>Download for Windows</strong></a>
+  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.2/StreamVista-IPTV-Setup-v1.0.2.exe"><strong>Download for Windows (v1.0.2)</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/app-arm64-v8a-release.apk"><strong>Download for Android</strong></a>
+  &nbsp;·&nbsp;
+  <a href="#new-logo-preview-linux-and-android"><strong>New-logo preview: Linux &amp; Android</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases">All releases</a>
   &nbsp;·&nbsp;
@@ -50,7 +52,7 @@ StreamVista puts live TV, movies, and series in a focused interface built for co
 
 ## Windows installation
 
-1. Download **StreamVista-IPTV-Setup-v1.0.2.exe** from the latest release above.
+1. Download **StreamVista-IPTV-Setup-v1.0.2.exe** using the Windows link above.
 2. Run the installer and follow the on-screen steps.
 3. Open StreamVista and add the details from a provider you are authorised to use.
 
@@ -66,11 +68,34 @@ The APK works on modern Android phones, tablets, and compatible Android TV devic
 
 ## Linux installation
 
-Build the `.deb` package from source (see [Build release artifacts](#build-release-artifacts)), then install it:
+Download the [stable Linux installer (v1.0.5)](https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.5/streamvista-iptv_1.0.5-5_amd64.deb), then install it:
+
+```bash
+sudo apt install ./streamvista-iptv_1.0.5-5_amd64.deb
+```
+
+You can also build the `.deb` package from source (see [Build release artifacts](#build-release-artifacts)) and install it from `dist/`:
 
 ```bash
 sudo apt install ./dist/streamvista-iptv_<version>_amd64.deb
 ```
+
+## New-logo preview (Linux and Android)
+
+The [v1.0.5-preview.7 release](https://github.com/rgdesarrollo/streamvista-iptv/releases/tag/v1.0.5-preview.7) includes the new charcoal-and-gold logo in the launcher, main menu, and catalogs.
+
+- [Linux x64 installer (.deb)](https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.5-preview.7/streamvista-iptv_1.0.5-7_amd64.deb)
+- [Linux x64 archive (.tar.gz)](https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.5-preview.7/Steamvista-linux-x64-interior-logo.tar.gz)
+- [Android / Android TV test APK](https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.5-preview.7/Steamvista-interior-logo-test.apk)
+- [SHA-256 checksums](https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.5-preview.7/SHA256SUMS-linux-android.txt)
+
+To install the Linux preview:
+
+```bash
+sudo apt install ./streamvista-iptv_1.0.5-7_amd64.deb
+```
+
+This is a test release. The Linux build requires glibc 2.38 or newer, GLIBCXX_3.4.32, GTK 3, libmpv2, and libsecret. The Android APK is a debug build signed with a different key from the stable release, so it may not install as an update; save your playlists before changing installations. Device pairing currently returns HTTP 403, and PayPal payments and license verification are not enabled.
 
 ## Run locally
 
