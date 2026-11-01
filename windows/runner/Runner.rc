@@ -89,13 +89,14 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "StreamVista" "\0"
+            // Keep storage identity stable so upgrades retain user settings.
+            VALUE "CompanyName", "com.example" "\0"
             VALUE "FileDescription", "StreamVista IPTV" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "streamvista_iptv" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 StreamVista. All rights reserved." "\0"
             VALUE "OriginalFilename", "streamvista_iptv.exe" "\0"
-            VALUE "ProductName", "StreamVista IPTV" "\0"
+            VALUE "ProductName", "streamvista_iptv" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
