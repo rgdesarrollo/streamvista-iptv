@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.2/StreamVista-IPTV-Setup-v1.0.2.exe"><strong>Download for Windows (v1.0.2)</strong></a>
+  <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/download/v1.0.6/StreamVista-IPTV-Setup-v1.0.6.exe"><strong>Download for Windows (v1.0.6)</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases/latest/download/app-arm64-v8a-release.apk"><strong>Download for Android</strong></a>
   &nbsp;·&nbsp;
-  <a href="#new-logo-preview-linux-and-android"><strong>New-logo preview: Linux &amp; Android</strong></a>
+  <a href="#whats-new-in-v106"><strong>What’s new in v1.0.6</strong></a>
   &nbsp;·&nbsp;
   <a href="https://github.com/rgdesarrollo/streamvista-iptv/releases">All releases</a>
   &nbsp;·&nbsp;
@@ -37,7 +37,7 @@ StreamVista puts live TV, movies, and series in a focused interface built for co
 - Xtream Codes and HTTPS M3U/M3U8 playlist support
 - Hardware-accelerated playback through `media_kit`
 - Windows, Linux, Android phone/tablet, and Android TV support
-- Encrypted local credential storage and HTTPS-only portal/stream endpoints
+- Local provider settings and HTTPS portal/stream endpoints
 
 ## Platform support
 
@@ -50,9 +50,20 @@ StreamVista puts live TV, movies, and series in a focused interface built for co
 | macOS | Project scaffold present | Build on a Mac with Xcode |
 | Apple TV (tvOS) | Not supported | Requires a separate tvOS application |
 
+## What's new in v1.0.6
+
+The [v1.0.6 release](https://github.com/rgdesarrollo/streamvista-iptv/releases/tag/v1.0.6) provides updated Android APKs and a Windows installer from the same app source.
+
+- New charcoal-and-gold logo in the launcher and app menus, plus the Windows executable and setup icon.
+- Updated device-pairing screen with the website link, copy-link button, device ID and PIN, code regeneration, and expiry handling.
+- Windows setup with shortcuts and an uninstaller; Android APKs signed with the same release key as v1.0.5 for updates.
+- Includes Live TV preview/fullscreen playback, movies and series controls, and M3U content sorting.
+
+Device pairing still depends on the pairing service allowing public access; the preview service returned HTTP 403. PayPal payments and license verification are not implemented. The Android release APK cannot update the earlier debug preview in place because the signing keys differ.
+
 ## Windows installation
 
-1. Download **StreamVista-IPTV-Setup-v1.0.2.exe** using the Windows link above.
+1. Download **StreamVista-IPTV-Setup-v1.0.6.exe** using the Windows link above.
 2. Run the installer and follow the on-screen steps.
 3. Open StreamVista and add the details from a provider you are authorised to use.
 
@@ -137,7 +148,7 @@ Before Android release builds, configure your own signing key in `android/key.pr
 
 ## Privacy and security
 
-- Portal credentials are stored with platform-backed encrypted storage, not plain preferences.
+- Provider credentials are saved locally in app preferences. Protect access to your device and its app data.
 - The app accepts HTTPS portal and stream URLs only.
 - No credentials, playlists, API keys, signing keys, or build logs are tracked in Git.
 - StreamVista sends the configured credentials only to the portal address you enter. Never share your provider credentials or playlists publicly.
