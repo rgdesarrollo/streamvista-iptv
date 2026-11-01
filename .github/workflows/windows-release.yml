@@ -18,6 +18,13 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build windows --release --obfuscate --split-debug-info=build/symbols/windows
+      - name: Bundle Visual C++ runtime
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $crt = Get-ChildItem "$vs/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT" -Directory | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$crt) { throw 'Visual C++ redistributable DLLs are missing' }
+          Copy-Item "$($crt.FullName)/*.dll" build/windows/x64/runner/Release/
       - name: Package Windows installer
         shell: pwsh
         run: |
@@ -28,6 +35,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath "dist/StreamVista-IPTV-Windows-v$version.zip"
           Get-FileHash dist/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content dist/SHA256SUMS-windows.txt
+      - name: Verify installation and application startup
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist/*Setup*.exe | Select-Object -First 1
+          $destination = Join-Path $env:RUNNER_TEMP 'StreamVista-install-test'
+          $install = Start-Process $setup.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$destination") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+          if (!(Test-Path "$destination/unins000.exe")) { throw 'Uninstaller was not created' }
+          $app = Start-Process "$destination/streamvista_iptv.exe" -PassThru
+          Start-Sleep -Seconds 10
+          if ($app.HasExited) { throw "Application exited during startup: $($app.ExitCode)" }
+          Stop-Process -Id $app.Id
       - uses: actions/upload-artifact@v4
         with:
           name: streamvista-windows
